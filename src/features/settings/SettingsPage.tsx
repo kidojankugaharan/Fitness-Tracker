@@ -4,8 +4,74 @@ import { useSession } from '@/app/useAuth'
 import { Button } from '@/components/Button'
 import { Card, Page } from '@/components/Page'
 import { showToast } from '@/lib/toast'
-import { supabase } from '@/lib/supabase/client'
+import { MIN_PASSWORD_LENGTH, signOut, useSetPassword } from '@/lib/supabase/account'
 import { useProfile, useUpdateProfile, type Profile } from '@/lib/supabase/profile'
+
+/** Lets magic-link users add a password so future sign-ins need no email. */
+function PasswordForm() {
+  const setPassword = useSetPassword()
+  const [password, setValue] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const tooShort = password.length > 0 && password.length < MIN_PASSWORD_LENGTH
+  const mismatch = confirm.length > 0 && confirm !== password
+  const valid = password.length >= MIN_PASSWORD_LENGTH && confirm === password
+
+  const inputClass =
+    'border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base'
+
+  return (
+    <Card>
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (!valid) return
+          setPassword.mutate(password, {
+            onSuccess: () => {
+              setValue('')
+              setConfirm('')
+              showToast('Password saved — use it to sign in without email', 'info', 3000)
+            },
+          })
+        }}
+      >
+        <div>
+          <h2 className="font-semibold">Password</h2>
+          <p className="text-muted text-sm">
+            Set one to sign in on other devices without waiting for an email.
+          </p>
+        </div>
+        <label className="block">
+          <span className="text-muted mb-1 block text-xs font-medium">New password</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setValue(e.target.value)}
+            aria-invalid={tooShort}
+            className={inputClass}
+          />
+        </label>
+        <label className="block">
+          <span className="text-muted mb-1 block text-xs font-medium">Confirm password</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            aria-invalid={mismatch}
+            className={inputClass}
+          />
+        </label>
+        {tooShort && <p className="text-danger text-sm">At least {MIN_PASSWORD_LENGTH} characters.</p>}
+        {mismatch && <p className="text-danger text-sm">Passwords don't match.</p>}
+        <Button type="submit" className="w-full" disabled={!valid || setPassword.isPending}>
+          {setPassword.isPending ? 'Saving…' : 'Save password'}
+        </Button>
+      </form>
+    </Card>
+  )
+}
 
 const GOAL_FIELDS = [
   { key: 'goal_kcal', label: 'Calories', unit: 'kcal', max: 20000 },
@@ -105,7 +171,9 @@ export function SettingsPage() {
 
       {profile && <GoalsForm key={profile.updated_at} profile={profile} />}
 
-      <Button variant="danger" className="w-full" onClick={() => supabase.auth.signOut()}>
+      <PasswordForm />
+
+      <Button variant="danger" className="w-full" onClick={() => signOut()}>
         Sign out
       </Button>
     </Page>

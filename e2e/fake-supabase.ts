@@ -16,22 +16,76 @@ function b64url(value: object) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')
 }
 
-/** Seed a signed-in session in localStorage before the app boots. */
-export async function signIn(page: Page) {
+export const TEST_EMAIL = 'test@example.com'
+export const TEST_PASSWORD = 'correct-horse-battery'
+
+const testUser = { id: USER_ID, email: TEST_EMAIL, aud: 'authenticated', role: 'authenticated' }
+
+function makeSession() {
   const exp = Math.floor(Date.now() / 1000) + 3600
   const token = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ sub: USER_ID, exp, role: 'authenticated' })}.sig`
-  const session = {
+  return {
     access_token: token,
     refresh_token: 'fake-refresh',
     token_type: 'bearer',
     expires_in: 3600,
     expires_at: exp,
-    user: { id: USER_ID, email: 'test@example.com', aud: 'authenticated', role: 'authenticated' },
+    user: testUser,
   }
+}
+
+/** Seed a signed-in session in localStorage before the app boots. */
+export async function signIn(page: Page) {
   await page.addInitScript(([key, value]) => localStorage.setItem(key, value), [
     `sb-${projectRef}-auth-token`,
-    JSON.stringify(session),
+    JSON.stringify(makeSession()),
   ] as const)
+}
+
+/** Records what the app sent to the auth API, so tests can assert on it. */
+export type AuthLog = { otpRequests: number; passwordUpdates: string[] }
+
+/** Fake Supabase Auth: password grant, email OTP requests and password updates. */
+async function installFakeAuth(page: Page, log: AuthLog) {
+  await page.route('**/auth/v1/**', async (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    const path = url.pathname.split('/auth/v1/')[1]
+    // Newer response format: errors carry `code`, which supabase-js surfaces as AuthError.code.
+    const headers = {
+      'x-supabase-api-version': '2024-01-01',
+      'access-control-allow-origin': '*',
+      'access-control-expose-headers': 'x-supabase-api-version',
+    }
+
+    if (path === 'token' && url.searchParams.get('grant_type') === 'password') {
+      const body = req.postDataJSON() as { email: string; password: string }
+      if (body.email === TEST_EMAIL && body.password === TEST_PASSWORD) {
+        return route.fulfill({ headers, json: makeSession() })
+      }
+      return route.fulfill({
+        status: 400,
+        headers,
+        json: { code: 'invalid_credentials', message: 'Invalid login credentials' },
+      })
+    }
+    if (path === 'otp') {
+      log.otpRequests += 1
+      if (log.otpRequests > 1) {
+        return route.fulfill({
+          status: 429,
+          headers,
+          json: { code: 'over_email_send_rate_limit', message: 'email rate limit exceeded' },
+        })
+      }
+      return route.fulfill({ headers, json: {} })
+    }
+    if (path === 'user' && req.method() === 'PUT') {
+      log.passwordUpdates.push((req.postDataJSON() as { password: string }).password)
+      return route.fulfill({ headers, json: testUser })
+    }
+    return route.fulfill({ headers, json: {} })
+  })
 }
 
 export function seedTables(): Tables {
@@ -163,8 +217,12 @@ const OFF_HITS = [
   },
 ]
 
-export async function installFakeBackend(page: Page, db: Tables = seedTables()) {
-  await page.route('**/auth/v1/**', (route) => route.fulfill({ status: 200, json: {} }))
+export async function installFakeBackend(
+  page: Page,
+  db: Tables = seedTables(),
+  authLog: AuthLog = { otpRequests: 0, passwordUpdates: [] },
+) {
+  await installFakeAuth(page, authLog)
 
   await page.route('**/off-search/**', (route) => route.fulfill({ json: { hits: OFF_HITS } }))
 
