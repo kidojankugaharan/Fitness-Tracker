@@ -37,4 +37,15 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // Mirrors the /off-search rewrite in vercel.json (OFF search has no CORS headers).
+  server: { proxy: { '/off-search': offSearchProxy() } },
+  preview: { proxy: { '/off-search': offSearchProxy() } },
 })
+
+function offSearchProxy() {
+  return {
+    target: 'https://search.openfoodfacts.org',
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/off-search/, ''),
+  }
+}

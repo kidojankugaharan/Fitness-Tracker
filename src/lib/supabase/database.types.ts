@@ -3,11 +3,27 @@
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
-type Table<Row, Required extends keyof Row = never> = {
+type Relationship = {
+  foreignKeyName: string
+  columns: string[]
+  isOneToOne: boolean
+  referencedRelation: string
+  referencedColumns: string[]
+}
+
+type Table<Row, Required extends keyof Row = never, Relationships extends Relationship[] = []> = {
   Row: Row
   Insert: Partial<Row> & Pick<Row, Required>
   Update: Partial<Row>
-  Relationships: []
+  Relationships: Relationships
+}
+
+type ForeignKey<Name extends string, Column extends string, Referenced extends string> = {
+  foreignKeyName: Name
+  columns: [Column]
+  isOneToOne: false
+  referencedRelation: Referenced
+  referencedColumns: ['id']
 }
 
 export type UnitSystem = 'kg' | 'lb'
@@ -72,7 +88,8 @@ export type Database = {
           use_count: number
           last_used_at: string | null
         },
-        'food_id'
+        'food_id',
+        [ForeignKey<'user_foods_food_id_fkey', 'food_id', 'foods'>]
       >
       food_entries: Table<
         {
@@ -86,7 +103,8 @@ export type Database = {
           serving_label: string | null
           created_at: string
         },
-        'date' | 'meal' | 'food_snapshot' | 'grams'
+        'date' | 'meal' | 'food_snapshot' | 'grams',
+        [ForeignKey<'food_entries_food_id_fkey', 'food_id', 'foods'>]
       >
       recipes: Table<
         { id: string; user_id: string; name: string; servings: number; created_at: string },
@@ -153,11 +171,34 @@ export type Database = {
           completed_at: string | null
           created_at: string
         },
-        'workout_id' | 'exercise_id'
+        'workout_id' | 'exercise_id',
+        [
+          ForeignKey<'workout_sets_workout_id_fkey', 'workout_id', 'workouts'>,
+          ForeignKey<'workout_sets_exercise_id_fkey', 'exercise_id', 'exercises'>,
+        ]
       >
     }
     Views: { [_ in never]: never }
-    Functions: { [_ in never]: never }
+    Functions: {
+      cache_off_food: {
+        Args: {
+          p_off_code: string
+          p_name: string
+          p_brand: string | null
+          p_kcal_100g: number
+          p_protein_100g: number | null
+          p_carbs_100g: number | null
+          p_fat_100g: number | null
+          p_fiber_100g: number | null
+          p_sugar_100g: number | null
+          p_sat_fat_100g: number | null
+          p_sodium_mg_100g: number | null
+          p_servings: Json
+        }
+        Returns: string
+      }
+      record_food_use: { Args: { p_food_id: string }; Returns: undefined }
+    }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }
   }

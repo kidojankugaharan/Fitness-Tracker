@@ -34,7 +34,9 @@ A mobile-friendly web app combining **food & macro logging** (MyFitnessPal-style
 
 ## Open Food Facts integration
 
-- Call OFF directly from the browser (CORS is allowed). Identify the app via the `app_name`/`app_version` query params and contact info as OFF requests.
+- **Search** uses search-a-licious (`search.openfoodfacts.org/search`), which sends **no CORS headers**, so the browser calls the same-origin path `/off-search/*`: proxied by Vite (`server.proxy`/`preview.proxy` in vite.config.ts) locally and by a rewrite in vercel.json in production. The legacy `/cgi/search.pl` endpoint returned 503 when checked (2026-10-18).
+- **Product lookup** (`world.openfoodfacts.org/api/v2/product/{code}`) allows CORS (`*`) and can be called directly (for barcodes, Phase 4).
+- search-a-licious returns `brands` as an array; the v2 product API returns a comma-separated string. The mapper (`src/lib/off/mapper.ts`) handles both.
 - **Rate limits**: search ≈ 10 req/min, product (barcode) lookup ≈ 100 req/min. Therefore:
   - Search the user's own foods (recent, frequent, favorites, custom) **first**, locally/from Supabase, with zero OFF calls.
   - Only hit OFF search on debounced input (≥ 500ms, ≥ 3 chars) or explicit submit; cache results in TanStack Query.
@@ -96,7 +98,7 @@ routine_items   routine_id, exercise_id, position, target_sets, target_reps?
 Computed from `workout_sets` (non-warmup), never hand-entered:
 
 - Heaviest weight, best estimated 1RM (**Epley**: `w * (1 + reps/30)`, reps ≤ 12), max reps at a given weight (rep-max table), best single-set volume, best session volume.
-- Implement as pure functions in `src/domain/prs.ts` (unit-tested). Detect a new PR when a set is completed and show a badge. A SQL view/RPC can be added later if client computation gets slow.
+- Implement as pure functions in `src/domain/prs.ts` (unit-tested). Detect a new PR when a set is completed and show a badge. Rules: warm-ups never count; the very first set of an exercise is not a PR (nothing to beat); ties are not PRs; rep PRs only for sets without weight. A SQL view/RPC can be added later if client computation gets slow.
 
 ## Commands
 
@@ -138,7 +140,7 @@ supabase/
 
 ## Phased build plan
 
-### Phase 0 — Foundation (scaffolded 2026-10-18; migration not yet applied to Supabase, not yet deployed)
+### Phase 0 — Foundation (done 2026-10-18; migrations not yet applied to Supabase, not yet deployed)
 
 - Scaffold Vite/React/TS/Tailwind, ESLint/Prettier, Vitest, Playwright.
 - Supabase project, migrations for the full schema above + RLS policies, generated types.
@@ -146,7 +148,7 @@ supabase/
 - Mobile shell: bottom tabs, safe-area insets, dark mode.
 - Deploy to Vercel with preview deploys.
 
-### Phase 1 — Smallest useful version (both, thin)
+### Phase 1 — Smallest useful version (both, thin) (built 2026-10-18; verified with Playwright against a fake backend in `e2e/fake-supabase.ts`, not yet against live Supabase)
 
 **Workouts**
 
