@@ -4,6 +4,18 @@ import { Button } from '@/components/Button'
 import { isValidBarcode } from '@/domain/barcode'
 import { dateFromParam } from '@/domain/dates'
 import { createScanConfirmer } from '@/domain/scanConfirm'
+import {
+  backCameras,
+  exposureRange,
+  exposureWithLight,
+  openScanCamera,
+  rememberCamera,
+  setExposure,
+  setTorch,
+  snapExposure,
+  torchSupported,
+  type ExposureRange,
+} from '@/lib/barcode/camera'
 import { getDetector } from '@/lib/barcode/detector'
 import { barcodePath, diaryPath } from './paths'
 
@@ -11,10 +23,18 @@ const SCAN_INTERVAL_MS = 120
 // After "Add & scan next", the previous item must be out of view this long before it can scan again.
 const IGNORE_CLEAR_MS = 1000
 
-type CameraState =
-  { kind: 'starting' } | { kind: 'scanning'; torch: boolean | null } | { kind: 'error'; message: string }
+type Scanning = {
+  kind: 'scanning'
+  /** null when the camera has no controllable light (e.g. iPhone browsers). */
+  torch: boolean | null
+  /** Brightness slider, where the camera supports exposure compensation (Android Chrome). */
+  exposure: { range: ExposureRange; value: number } | null
+  /** Back cameras to switch between (only shown when there is more than one). */
+  cameras: string[]
+  deviceId: string | null
+}
 
-type TorchConstraints = MediaTrackConstraintSet & { torch?: boolean }
+type CameraState = { kind: 'starting' } | Scanning | { kind: 'error'; message: string }
 
 export function ScanPage() {
   const [params] = useSearchParams()
@@ -25,6 +45,8 @@ export function ScanPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<MediaStreamTrack | null>(null)
   const [camera, setCamera] = useState<CameraState>({ kind: 'starting' })
+  // A camera the user switched to; changing it restarts the scanner with that camera.
+  const [chosenCamera, setChosenCamera] = useState<string | undefined>(undefined)
   const [manual, setManual] = useState('')
 
   const found = (code: string) => {
@@ -50,26 +72,28 @@ export function ScanPage() {
         return
       }
       try {
-        const [detector, media] = await Promise.all([
-          getDetector(),
-          navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          }),
-        ])
-        stream = media
+        // Camera and decoder start together; a sharper picture where the fast native decoder exists.
+        const native = 'BarcodeDetector' in globalThis
+        const [detector, cam] = await Promise.all([getDetector(), openScanCamera(native, chosenCamera)])
+        stream = cam.stream
         if (stopped) {
           // Closed while the camera was starting: the cleanup already ran, so stop it here.
-          media.getTracks().forEach((t) => t.stop())
+          cam.stream.getTracks().forEach((t) => t.stop())
           return
         }
         const video = videoRef.current!
-        video.srcObject = media
+        video.srcObject = cam.stream
         await video.play()
-        const track = media.getVideoTracks()[0] ?? null
-        trackRef.current = track
-        const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean }
-        setCamera({ kind: 'scanning', torch: caps.torch ? false : null })
+        trackRef.current = cam.track
+        const range = exposureRange(cam.track)
+        const cameras = (await backCameras().catch(() => [])).map((d) => d.deviceId)
+        setCamera({
+          kind: 'scanning',
+          torch: torchSupported(cam.track) ? false : null,
+          exposure: range ? { range, value: snapExposure(range, 0) } : null,
+          cameras,
+          deviceId: cam.deviceId,
+        })
 
         const tick = async () => {
           if (stopped) return
@@ -91,6 +115,7 @@ export function ScanPage() {
               )
               if (hit && !stopped) {
                 stopped = true
+                rememberCamera(cam.deviceId) // this lens reads barcodes: open it first next time
                 found(hit)
                 return
               }
@@ -123,19 +148,43 @@ export function ScanPage() {
       stream?.getTracks().forEach((t) => t.stop())
       trackRef.current = null
     }
-    // Start the camera once per mount; `found` only navigates away.
+    // Restart only when the user picks another camera; `found` only navigates away.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [chosenCamera])
+
+  const scanning = camera.kind === 'scanning' ? camera : null
 
   const toggleTorch = async () => {
-    if (camera.kind !== 'scanning' || camera.torch === null || !trackRef.current) return
-    const next = !camera.torch
+    const track = trackRef.current
+    if (!scanning || scanning.torch === null || !track) return
+    const on = !scanning.torch
     try {
-      await trackRef.current.applyConstraints({ advanced: [{ torch: next } as TorchConstraints] })
-      setCamera({ kind: 'scanning', torch: next })
+      await setTorch(track, on)
+      // The light can't be dimmed, so with it on the picture starts darker to cut glare.
+      let exposure = scanning.exposure
+      if (exposure) {
+        const value = on ? exposureWithLight(exposure.range) : snapExposure(exposure.range, 0)
+        await setExposure(track, value).catch(() => {})
+        exposure = { ...exposure, value }
+      }
+      setCamera({ ...scanning, torch: on, exposure })
     } catch {
-      setCamera({ kind: 'scanning', torch: null })
+      setCamera({ ...scanning, torch: null })
     }
+  }
+
+  const changeExposure = (value: number) => {
+    const track = trackRef.current
+    if (!scanning?.exposure || !track) return
+    setCamera({ ...scanning, exposure: { ...scanning.exposure, value } })
+    void setExposure(track, value).catch(() => {})
+  }
+
+  const switchCamera = () => {
+    if (!scanning || scanning.cameras.length < 2) return
+    const i = scanning.cameras.indexOf(scanning.deviceId ?? '')
+    setCamera({ kind: 'starting' })
+    setChosenCamera(scanning.cameras[(i + 1) % scanning.cameras.length])
   }
 
   const manualCode = manual.replace(/\s/g, '')
@@ -152,14 +201,14 @@ export function ScanPage() {
           Cancel
         </button>
         <span className="font-semibold">Scan barcode</span>
-        {camera.kind === 'scanning' && camera.torch !== null ? (
+        {scanning && scanning.torch !== null ? (
           <button
             type="button"
-            aria-pressed={camera.torch}
+            aria-pressed={scanning.torch}
             onClick={toggleTorch}
             className="min-h-11 px-2 text-base font-semibold"
           >
-            {camera.torch ? 'Light off' : 'Light'}
+            {scanning.torch ? 'Light off' : 'Light'}
           </button>
         ) : (
           <span className="w-16" />
@@ -173,14 +222,42 @@ export function ScanPage() {
             <div className="h-36 w-[80%] max-w-sm rounded-2xl border-4 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
           </div>
         )}
-        <p
-          role="status"
-          className="absolute inset-x-0 bottom-4 px-6 text-center text-sm font-medium text-white/90"
-        >
-          {camera.kind === 'starting' && 'Starting camera…'}
-          {camera.kind === 'scanning' && 'Point at the barcode — it scans automatically.'}
-          {camera.kind === 'error' && camera.message}
-        </p>
+        <div className="absolute inset-x-0 bottom-3 space-y-2 px-4">
+          {scanning?.exposure && (
+            <label className="mx-auto flex max-w-sm items-center gap-3 rounded-xl bg-black/60 px-3 py-2 text-sm">
+              <span className="shrink-0 font-medium">Brightness</span>
+              <input
+                type="range"
+                aria-label="Brightness"
+                min={scanning.exposure.range.min}
+                max={scanning.exposure.range.max}
+                step={scanning.exposure.range.step}
+                value={scanning.exposure.value}
+                onChange={(e) => changeExposure(Number(e.target.value))}
+                className="min-h-11 flex-1 accent-white"
+              />
+            </label>
+          )}
+          <p role="status" className="text-center text-sm font-medium text-white/90">
+            {camera.kind === 'starting' && 'Starting camera…'}
+            {scanning &&
+              (scanning.torch
+                ? 'Glare? Slide brightness down or tilt the package slightly.'
+                : 'Point at the barcode — it scans automatically.')}
+            {camera.kind === 'error' && camera.message}
+          </p>
+          {scanning && scanning.cameras.length > 1 && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={switchCamera}
+                className="min-h-11 rounded-xl bg-black/60 px-4 text-sm font-semibold"
+              >
+                Switch camera
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <form

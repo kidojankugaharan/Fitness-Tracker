@@ -22,9 +22,13 @@ const screens = {
 
 const screen = (load: () => Promise<ComponentType>) => async () => ({ Component: await load() })
 
-/** Fetch every screen's code once the app is idle (module imports are cached after that). */
+/** Fetch every screen's code (and the barcode decoder) once the app is idle. */
 export function preloadScreens() {
-  const run = () => Object.values(screens).forEach((load) => void load().catch(() => {}))
+  const run = () => {
+    Object.values(screens).forEach((load) => void load().catch(() => {}))
+    // Warm up the barcode decoder too, so the scanner reads the first barcode without a delay.
+    void import('@/lib/barcode/detector').then((m) => m.getDetector()).catch(() => {})
+  }
   if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 3000 })
   else setTimeout(run, 1500)
 }

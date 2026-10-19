@@ -217,3 +217,38 @@ test('a USDA outage is reported as a failed check, not as "not found"', async ({
   await expect(page.getByText('Not in the food databases yet')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Enter it manually' })).toBeVisible()
 })
+
+test('with the light on, the picture starts darker and brightness can be adjusted', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'needs the fake camera')
+  // Pretend the camera has a light and exposure control (like Android Chrome), and record changes.
+  await page.addInitScript(() => {
+    const applied: unknown[] = []
+    ;(window as unknown as { applied: unknown[] }).applied = applied
+    MediaStreamTrack.prototype.getCapabilities = () =>
+      ({ torch: true, exposureCompensation: { min: -2, max: 2, step: 0.5 } }) as MediaTrackCapabilities
+    MediaStreamTrack.prototype.applyConstraints = async function (c?: MediaTrackConstraints) {
+      applied.push(...(c?.advanced ?? []))
+    }
+  })
+  await installFakeBackend(page)
+  // A barcode that isn't in the fake databases would navigate away; keep the camera on this screen
+  // by making the scan ignore Nutella (the code the fake camera shows).
+  await page.goto('/food')
+  await page.evaluate(() =>
+    window.history.replaceState({ usr: { ignore: '3017624010701' }, key: 'x', idx: 0 }, '', '/food/scan'),
+  )
+  await page.reload()
+  await page.getByRole('button', { name: 'Light' }).click()
+  await expect(page.getByRole('slider', { name: 'Brightness' })).toHaveValue('-1')
+  const applied = () => page.evaluate(() => (window as unknown as { applied: unknown[] }).applied)
+  await expect.poll(applied).toContainEqual({ torch: true })
+  await expect.poll(applied).toContainEqual({ exposureMode: 'continuous', exposureCompensation: -1 })
+
+  await page.getByRole('slider', { name: 'Brightness' }).fill('0.5')
+  await expect.poll(applied).toContainEqual({ exposureMode: 'continuous', exposureCompensation: 0.5 })
+  await page.getByRole('button', { name: 'Light off' }).click()
+  await expect(page.getByRole('slider', { name: 'Brightness' })).toHaveValue('0')
+})
