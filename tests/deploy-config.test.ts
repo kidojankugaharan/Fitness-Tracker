@@ -33,3 +33,21 @@ describe('vercel.json', () => {
     ])
   })
 })
+
+// Android verifies the APK's signing key against this file before opening the app without a URL bar.
+describe('Android app links', () => {
+  it('serves assetlinks.json as a file and names the same package as the APK', () => {
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as {
+      rewrites: { source: string; destination: string }[]
+    }
+    const spa = vercel.rewrites.find((r) => r.destination === '/index.html')!
+    expect(new RegExp(`^${spa.source}$`).test('/.well-known/assetlinks.json')).toBe(false)
+
+    const links = JSON.parse(readFileSync('public/.well-known/assetlinks.json', 'utf8')) as {
+      target: { package_name: string; sha256_cert_fingerprints: string[] }
+    }[]
+    const twa = JSON.parse(readFileSync('android/twa-manifest.json', 'utf8')) as { packageId: string }
+    expect(links[0]!.target.package_name).toBe(twa.packageId)
+    expect(links[0]!.target.sha256_cert_fingerprints[0]).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/)
+  })
+})

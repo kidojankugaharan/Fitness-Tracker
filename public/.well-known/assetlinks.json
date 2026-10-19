@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kidojankugaharan.fitnesstracker",
+      "sha256_cert_fingerprints": [
+        "A5:7C:7E:80:20:0C:EE:27:B5:EB:6E:94:6F:FD:9E:E4:DD:49:21:C4:E7:88:C2:C8:E4:C5:15:8E:BF:62:36:EE"
+      ]
+    }
+  }
+]

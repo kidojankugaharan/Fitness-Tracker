@@ -1,0 +1,75 @@
+# Builds the Android app (a Trusted Web Activity wrapping the live PWA) and publishes the signed APK
+# as a GitHub Release. The app loads https://fitness-tracker-phi-inky.vercel.app, so web deploys
+# reach it without a rebuild; rebuild only when the name, icon or Android settings change.
+#
+# Needs repository secrets ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD (the signing key
+# lives outside the repo; its SHA-256 fingerprint is in public/.well-known/assetlinks.json).
+name: Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Bubblewrap
+        run: npm install -g @bubblewrap/cli@1.24.1
+
+      - name: Point Bubblewrap at the runner's JDK and Android SDK
+        run: |
+          mkdir -p ~/.bubblewrap
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
+
+      - name: Set the version code from the run number (each build installs over the last)
+        run: |
+          jq --argjson code "$GITHUB_RUN_NUMBER" --arg name "1.0.$GITHUB_RUN_NUMBER" \
+            '.appVersionCode = $code | .appVersionName = $name' twa-manifest.json > tmp.json
+          mv tmp.json twa-manifest.json
+
+      - name: Generate the Android project
+        run: bubblewrap update --skipVersionUpgrade --manifest=./twa-manifest.json
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Sign
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android.keystore
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/zipalign" -f -p 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          "$BT/apksigner" sign --ks android.keystore --ks-type PKCS12 --ks-key-alias android \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out fitness-tracker.apk aligned.apk
+          "$BT/apksigner" verify --print-certs fitness-tracker.apk | grep -i sha-256
+          rm android.keystore
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-v1.0.$GITHUB_RUN_NUMBER" fitness-tracker.apk \
+            --title "Fitness Tracker for Android 1.0.$GITHUB_RUN_NUMBER" \
+            --notes "Download fitness-tracker.apk on your Android phone and open it to install."
