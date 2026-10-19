@@ -9,17 +9,30 @@ export function Toaster() {
       className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+0.5rem)] z-50 flex flex-col items-center gap-2 px-4"
     >
       {toasts.map((t) => (
-        <button
+        <div
           key={t.id}
-          type="button"
-          onClick={() => dismissToast(t.id)}
+          role={t.tone === 'error' ? 'alert' : 'status'}
           className={clsx(
-            'pointer-events-auto w-full max-w-md rounded-xl px-4 py-3 text-left text-sm font-medium shadow-lg',
+            'pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-xl py-1 pr-1 pl-4 text-sm font-medium shadow-lg',
             t.tone === 'error' ? 'bg-danger text-white' : 'bg-text text-bg',
           )}
         >
-          {t.message}
-        </button>
+          <button type="button" onClick={() => dismissToast(t.id)} className="min-h-11 flex-1 py-2 text-left">
+            {t.message}
+          </button>
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                dismissToast(t.id)
+                t.action!.run()
+              }}
+              className="min-h-11 shrink-0 rounded-lg px-3 font-bold underline underline-offset-2"
+            >
+              {t.action.label}
+            </button>
+          )}
+        </div>
       ))}
     </div>
   )

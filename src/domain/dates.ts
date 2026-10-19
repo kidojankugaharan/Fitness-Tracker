@@ -43,3 +43,24 @@ export function formatDayLabel(value: LocalDate, now: Date = new Date()): string
     month: 'short',
   })
 }
+
+export function isLocalDate(value: string | null | undefined): value is LocalDate {
+  if (!value) return false
+  try {
+    parseLocalDate(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** A date from a URL parameter: used if valid, otherwise `fallback` (today). Never throws. */
+export function dateFromParam(value: string | null, fallback: LocalDate = today()): LocalDate {
+  return isLocalDate(value) ? value : fallback
+}
+
+/** Milliseconds until the next local midnight (at least 1 s, to avoid tight loops around DST). */
+export function msUntilMidnight(now: Date = new Date()): number {
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  return Math.max(1000, next.getTime() - now.getTime())
+}

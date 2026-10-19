@@ -3,9 +3,9 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { FullScreenSpinner } from '@/app/RequireAuth'
 import { Button } from '@/components/Button'
 import { Card, SubPage } from '@/components/Page'
-import { today } from '@/domain/dates'
+import { dateFromParam } from '@/domain/dates'
 import { suggestMeal } from '@/domain/meals'
-import { useAddFoodEntry, useBarcodeLookup, type FoodChoice } from '@/lib/supabase/food'
+import { useAddFoodEntry, useBarcodeLookup, type BarcodeLookup, type FoodChoice } from '@/lib/supabase/food'
 import { useProfile } from '@/lib/supabase/profile'
 import { AmountForm } from './AmountForm'
 import { CustomFoodForm } from './CustomFoodForm'
@@ -16,7 +16,7 @@ export function BarcodeResultPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { data: profile } = useProfile()
-  const date = params.get('date') ?? today()
+  const date = dateFromParam(params.get('date'))
   const meal = params.get('meal') ?? suggestMeal(profile?.meal_names ?? [])
   const lookup = useBarcodeLookup(code)
   const add = useAddFoodEntry()
@@ -27,9 +27,10 @@ export function BarcodeResultPage() {
   const back = () => navigate(diaryPath(date))
   const scanAgain = () => navigate(scanPath(date, meal), { replace: true })
 
-  if (lookup.isPending) return <FullScreenSpinner />
+  if (lookup.isPending && !creating) return <FullScreenSpinner />
 
-  if (lookup.error) {
+  // "Enter it manually" sets creating, which falls through to the label form below.
+  if (lookup.error && !creating) {
     return (
       <SubPage title="Barcode" onBack={back}>
         <Card className="space-y-3">
@@ -45,7 +46,8 @@ export function BarcodeResultPage() {
     )
   }
 
-  const choice = created ?? (lookup.data.status === 'found' ? lookup.data.choice : null)
+  const result: BarcodeLookup = lookup.data ?? { status: 'not_found' }
+  const choice = created ?? (result.status === 'found' ? result.choice : null)
 
   if (choice && !creating) {
     const defaultServing = choice.servings[0]
@@ -62,10 +64,7 @@ export function BarcodeResultPage() {
           submitLabel="Add to diary"
           secondaryLabel="Add & scan next"
           onSubmit={(r, again) => {
-            add.mutate({
-              id: crypto.randomUUID(),
-              input: { choice, date, meal: r.meal, grams: r.grams, servingLabel: r.servingLabel },
-            })
+            add.add({ choice, date, meal: r.meal, grams: r.grams, servingLabel: r.servingLabel })
             if (again) navigate(scanPath(date, r.meal), { replace: true, state: { ignore: code } })
             else back()
           }}
@@ -82,7 +81,7 @@ export function BarcodeResultPage() {
     )
   }
 
-  const prefill = lookup.data.status === 'incomplete' ? lookup.data : null
+  const prefill = result.status === 'incomplete' ? result : null
 
   return (
     <SubPage title="New food" onBack={back}>
@@ -101,8 +100,9 @@ export function BarcodeResultPage() {
       )}
       <CustomFoodForm
         barcode={code}
-        initialName={prefill?.name ?? (lookup.data.status === 'found' ? lookup.data.choice.name : null)}
-        initialBrand={prefill?.brand ?? (lookup.data.status === 'found' ? lookup.data.choice.brand : null)}
+        energyUnit={profile?.energy_unit ?? 'kcal'}
+        initialName={prefill?.name ?? (result.status === 'found' ? result.choice.name : null)}
+        initialBrand={prefill?.brand ?? (result.status === 'found' ? result.choice.brand : null)}
         onCreated={(food) => {
           setCreated(food)
           setCreating(false)

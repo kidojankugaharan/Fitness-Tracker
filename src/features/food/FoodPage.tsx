@@ -2,9 +2,17 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { DateSwitcher } from '@/components/DateSwitcher'
 import { MacroSummary } from '@/components/MacroSummary'
-import { Card, Page } from '@/components/Page'
-import { today, type LocalDate } from '@/domain/dates'
-import { isWeightOnlyLabel, macrosFor, parseSnapshot, sumMacros, type Macros } from '@/domain/macros'
+import { Card, LoadError, Page } from '@/components/Page'
+import { dateFromParam, type LocalDate } from '@/domain/dates'
+import {
+  isWeightOnlyLabel,
+  macrosFor,
+  missingMacros,
+  parseSnapshot,
+  sumMacros,
+  type Macros,
+} from '@/domain/macros'
+import { useToday } from '@/lib/useToday'
 import { formatEnergy, formatNumber } from '@/domain/units'
 import { useFoodEntries, type FoodEntry } from '@/lib/supabase/food'
 import { useProfile } from '@/lib/supabase/profile'
@@ -15,9 +23,12 @@ const DAY = Symbol('whole day')
 
 export function FoodPage() {
   const [params, setParams] = useSearchParams()
-  const date: LocalDate = params.get('date') ?? today()
+  const todayDate = useToday()
+  const date: LocalDate = dateFromParam(params.get('date'), todayDate)
   const { data: profile } = useProfile()
-  const { data: entries = [], isPending } = useFoodEntries(date)
+  const entriesQuery = useFoodEntries(date)
+  const { isPending } = entriesQuery
+  const entries = useMemo(() => entriesQuery.data ?? [], [entriesQuery.data])
   const [copying, setCopying] = useState<string | typeof DAY | null>(null)
 
   const withMacros = useMemo(
@@ -29,6 +40,7 @@ export function FoodPage() {
     [entries],
   )
   const total = sumMacros(withMacros.map((e) => e.macros))
+  const missing = missingMacros(withMacros.map((e) => e.snapshot.per100))
 
   // Meals from settings, plus any meal names on entries that are no longer in settings.
   const meals = useMemo(() => {
@@ -38,16 +50,19 @@ export function FoodPage() {
 
   const setDate = (d: LocalDate) => {
     setCopying(null)
-    setParams(d === today() ? {} : { date: d }, { replace: true })
+    setParams(d === todayDate ? {} : { date: d }, { replace: true })
   }
   const energyUnit = profile?.energy_unit ?? 'kcal'
   const linkClass = 'active:bg-surface-2 flex min-h-11 items-center px-4 text-sm font-semibold'
 
   return (
     <Page title="Food" action={<DateSwitcher date={date} onChange={setDate} />}>
+      {entriesQuery.isError && !entriesQuery.data && (
+        <LoadError what="this day's food" onRetry={() => void entriesQuery.refetch()} />
+      )}
       {profile && (
         <Card>
-          <MacroSummary eaten={total} profile={profile} />
+          <MacroSummary eaten={total} profile={profile} missing={missing} />
         </Card>
       )}
 

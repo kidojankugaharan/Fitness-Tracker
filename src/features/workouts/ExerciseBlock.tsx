@@ -2,13 +2,21 @@ import { clsx } from 'clsx'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '@/app/useAuth'
-import { startRest } from '@/lib/restTimer'
 import { Button } from '@/components/Button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { Card } from '@/components/Page'
 import { annotatePRs, PR_LABELS, type PRKind } from '@/domain/prs'
-import { FIELDS_BY_TYPE, formatSet, type SetValues } from '@/domain/sets'
-import { displayToKg, formatNumber, kgToDisplay, type WeightUnit } from '@/domain/units'
+import {
+  draftFromSet,
+  FIELDS_BY_TYPE,
+  formatSet,
+  isLoggable,
+  parseSetDraft,
+  type SetDraft,
+  type SetValues,
+} from '@/domain/sets'
+import type { WeightUnit } from '@/domain/units'
+import { startRest } from '@/lib/restTimer'
 import type { Exercise } from '@/lib/supabase/exercises'
 import {
   newSetRow,
@@ -19,8 +27,7 @@ import {
   type Workout,
   type WorkoutSet,
 } from '@/lib/supabase/workouts'
-
-type Draft = Record<keyof SetValues, string>
+import { showToast } from '@/lib/toast'
 
 type Props = {
   workout: Workout
@@ -36,9 +43,9 @@ type Props = {
 export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, restSec, onRemove }: Props) {
   const userId = useSession().user.id
   const history = useExerciseHistory(exercise.id)
-  const addSet = useAddSet()
-  const deleteSet = useDeleteSet()
-  const [draft, setDraft] = useState<Partial<Draft>>({})
+  const addSet = useAddSet(workout.id)
+  const deleteSet = useDeleteSet(workout.id)
+  const [draft, setDraft] = useState<Partial<SetDraft>>({})
   const [warmup, setWarmup] = useState(false)
 
   const ordered = useMemo(() => [...sets].sort((a, b) => a.set_index - b.set_index), [sets])
@@ -50,10 +57,9 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
 
   // Pre-fill: the set just logged in this workout, else the first set from last time.
   const source = ordered.at(-1) ?? lastSession[0]
-  const prefill = toDraft(source, units)
-  const values: Draft = { ...prefill, ...draft }
+  const values: SetDraft = { ...draftFromSet(source, units), ...draft }
   const fields = FIELDS_BY_TYPE[exercise.type]
-  const parsed = parseDraft(values, units)
+  const parsed = parseSetDraft(values, units)
   const canLog = isLoggable(parsed, exercise.type)
 
   const logSet = () => {
@@ -65,13 +71,21 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
         exercise_order: exerciseOrder,
         set_index: (ordered.at(-1)?.set_index ?? -1) + 1,
         is_warmup: warmup,
-        ...parsed,
+        ...parsed.values,
       }),
     )
     setDraft({})
     setWarmup(false)
     navigator.vibrate?.(10)
     startRest(restSec, exercise.name)
+  }
+
+  const removeSet = (set: WorkoutSet) => {
+    deleteSet.mutate(set)
+    showToast(`Set deleted: ${formatSet(set, exercise.type, units)}`, 'info', 6000, {
+      label: 'Undo',
+      run: () => addSet.mutate(set),
+    })
   }
 
   let workingIndex = 0
@@ -82,7 +96,7 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
           {exercise.name}
         </Link>
         {onRemove && (
-          <button type="button" onClick={onRemove} className="text-muted text-sm">
+          <button type="button" onClick={onRemove} className="text-muted min-h-11 px-2 text-sm">
             Remove
           </button>
         )}
@@ -104,7 +118,7 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
                 label={label}
                 text={formatSet(set, exercise.type, units)}
                 prs={prs.get(set.id)}
-                onDelete={() => deleteSet.mutate(set)}
+                onDelete={() => removeSet(set)}
               />
             )
           })}
@@ -117,6 +131,7 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
             key={field}
             {...stepperProps(field, units)}
             value={values[field]}
+            invalid={parsed.invalid.includes(field)}
             onChange={(v) => setDraft((d) => ({ ...d, [field]: v }))}
           />
         ))}
@@ -169,7 +184,7 @@ function SetRow({
         type="button"
         aria-label={`Delete set ${label}`}
         onClick={onDelete}
-        className="text-muted active:bg-surface-2 size-9 rounded-full text-lg"
+        className="text-muted active:bg-surface-2 size-11 rounded-full text-lg"
       >
         ×
       </button>
@@ -196,45 +211,5 @@ function stepperProps(field: keyof SetValues, units: WeightUnit) {
       return { label: 'Seconds', step: 15, decimals: 0, inputMode: 'numeric' as const }
     case 'distance_m':
       return { label: 'Distance (km)', step: 0.5 }
-  }
-}
-
-function toDraft(set: SetValues | undefined, units: WeightUnit): Draft {
-  return {
-    weight_kg: set?.weight_kg != null ? formatNumber(kgToDisplay(set.weight_kg, units), 2) : '',
-    reps: set?.reps != null ? String(set.reps) : '',
-    duration_sec: set?.duration_sec != null ? String(set.duration_sec) : '',
-    distance_m: set?.distance_m != null ? formatNumber(set.distance_m / 1000, 2) : '',
-  }
-}
-
-function parseDraft(d: Draft, units: WeightUnit): SetValues {
-  const n = (s: string) => {
-    if (s.trim() === '') return null
-    const v = Number(s.replace(',', '.'))
-    return Number.isFinite(v) && v >= 0 ? v : null
-  }
-  const weight = n(d.weight_kg)
-  const distanceKm = n(d.distance_m)
-  const reps = n(d.reps)
-  const duration = n(d.duration_sec)
-  return {
-    weight_kg: weight != null ? Math.round(displayToKg(weight, units) * 100) / 100 : null,
-    reps: reps != null ? Math.round(reps) : null,
-    duration_sec: duration != null ? Math.round(duration) : null,
-    distance_m: distanceKm != null ? Math.round(distanceKm * 1000 * 100) / 100 : null,
-  }
-}
-
-function isLoggable(v: SetValues, type: Exercise['type']): boolean {
-  switch (type) {
-    case 'weight_reps':
-    case 'reps':
-      return (v.reps ?? 0) > 0
-    case 'time':
-    case 'weight_time':
-      return (v.duration_sec ?? 0) > 0
-    case 'distance':
-      return (v.distance_m ?? 0) > 0 || (v.duration_sec ?? 0) > 0
   }
 }

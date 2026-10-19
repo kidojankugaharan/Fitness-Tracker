@@ -3,6 +3,7 @@ import type { ComponentType, SVGProps } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { FoodIcon, ProgressIcon, SettingsIcon, TodayIcon, WorkoutIcon } from '@/components/icons'
 import { RestTimerBar } from '@/components/RestTimerBar'
+import { SyncStatus } from '@/components/SyncStatus'
 import { useRestTimer } from '@/lib/restTimer'
 
 type Tab = { to: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> }
@@ -19,6 +20,7 @@ export function AppLayout() {
   const resting = useRestTimer() !== null
   return (
     <div className="flex min-h-full flex-col">
+      <SyncStatus />
       {/* Extra bottom space while the rest timer bar sits above the tabs. */}
       <main className={clsx('flex-1', resting ? 'pb-36' : 'pb-20')}>
         <Outlet />

@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { SubPage } from '@/components/Page'
-import { today } from '@/domain/dates'
+import { dateFromParam } from '@/domain/dates'
 import { suggestMeal } from '@/domain/meals'
 import { QUICK_ADD_GRAMS } from '@/domain/macros'
 import { formatEnergy, type EnergyUnit } from '@/domain/units'
@@ -28,7 +28,7 @@ export function AddFoodPage() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
   const { data: profile } = useProfile()
-  const date = params.get('date') ?? today()
+  const date = dateFromParam(params.get('date'))
   const meal = params.get('meal') ?? suggestMeal(profile?.meal_names ?? [])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<FoodChoice | null>(null)
@@ -56,10 +56,7 @@ export function AddFoodPage() {
           }}
           submitLabel="Add to diary"
           onSubmit={(r) => {
-            add.mutate({
-              id: crypto.randomUUID(),
-              input: { choice: selected, date, meal: r.meal, grams: r.grams, servingLabel: r.servingLabel },
-            })
+            add.add({ choice: selected, date, meal: r.meal, grams: r.grams, servingLabel: r.servingLabel })
             back()
           }}
         />
@@ -72,13 +69,11 @@ export function AddFoodPage() {
       <SubPage title="Quick add" onBack={() => setMode('search')}>
         <QuickAddForm
           meals={profile?.meal_names ?? [meal]}
+          energyUnit={energyUnit}
           initial={{ meal }}
           submitLabel="Add to diary"
           onSubmit={({ snapshot, meal: chosenMeal }) => {
-            add.mutate({
-              id: crypto.randomUUID(),
-              input: { quick: snapshot, date, meal: chosenMeal, grams: QUICK_ADD_GRAMS, servingLabel: null },
-            })
+            add.add({ quick: snapshot, date, meal: chosenMeal, grams: QUICK_ADD_GRAMS, servingLabel: null })
             back()
           }}
         />
@@ -91,6 +86,7 @@ export function AddFoodPage() {
       <SubPage title="Create food" onBack={() => setMode('search')}>
         <CustomFoodForm
           barcode={null}
+          energyUnit={energyUnit}
           initialName={query.trim() || null}
           onCreated={(choice) => {
             setMode('search')

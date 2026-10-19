@@ -177,8 +177,16 @@ Done 2026-10-19 (verified with Playwright against the fake backend):
 
 Remaining Phase 2 items (not started):
 
-- Favorites; workout history calendar; edit past workouts; notes per set/exercise; body weight logging.
-- Import from the user's previous workout app's backup file (user request; format TBD — ask for a sample file).
+- Favorites; workout history calendar; edit past workouts **and edit sets during a workout**; notes per set/exercise; body weight logging; owned-food manager (edit/delete custom foods, "correct nutrition" flow).
+- Import from the user's previous workout app's backup file (user request; format TBD — ask for a sample file). Lossless JSON export first.
+
+### Codex review fixes (2026-10-19)
+
+A full Codex review (bugs, security, data integrity, UX, features, code quality) was done; every bug/security/integrity/UX/quality finding was fixed and regression-tested in `e2e/review-fixes.spec.ts` and `supabase/tests/policies.test.ts`. Missing features it listed are the "Remaining" items above. Still open:
+
+- **Migration `20261019000000_tighten_reference_policies.sql` must be applied** to the live project (SQL editor or `supabase db push`).
+- The shared OFF cache accepts inserts from any signed-in account (by design); with open sign-ups a stranger could plant bad data. Recommended: disable "Allow new users to sign up" in Supabase Auth.
+- A failed write keeps its payload for the toast's **Retry**, but doesn't restore the typed draft into the form.
 
 ### Phase 3 — Progress
 
@@ -190,7 +198,7 @@ Remaining Phase 2 items (not started):
 
 - Routines/templates (start workout from routine).
 - Recipes / saved meals.
-- Offline write queue (TanStack Query persisted mutations) for logging without signal in the gym.
+- ~~Offline write queue~~ — done early (see Conventions → writes).
 
 ### Phase 5 — Data portability & polish
 
@@ -205,7 +213,19 @@ Remaining Phase 2 items (not started):
 - Every schema change is a new SQL migration in `supabase/migrations/`; never edit applied migrations. Every new table gets an RLS policy in the same migration.
 - Store canonical units (kg, kcal, grams, seconds, meters); convert only at the display layer via `src/domain/units.ts`.
 - Use local `YYYY-MM-DD` dates for logging days (helpers in `src/domain/dates.ts`); never derive a log day from a UTC timestamp.
-- Mutations are optimistic; show errors as non-blocking toasts with retry.
-- Test at a mobile viewport (Playwright `iPhone 13` device) for every user-facing flow.
+- **Writes** (see `src/lib/supabase/writes.ts`):
+  - Optimistic, with rollback in the hook; every failure shows a toast with **Retry** (global `MutationCache.onError`).
+  - Inserts carry a client-generated UUID; a 23505 duplicate on retry means the earlier attempt committed (`throwUnlessDuplicate`). Never insert without a client id.
+  - Writes to the same thing share a mutation `scope` (diary entries; each workout's sets + finish; profile) so they run in order.
+  - After settling, refetch with `reconcileWhenIdle` (only when no other write in the group is pending). Cancel affected queries before optimistic updates.
+  - Diary writes, set logs/deletes and finishing a workout are registered with `setMutationDefaults` (`registerFoodMutations` / `registerWorkoutMutations`, called in `main.tsx` before restore) so offline writes persist to localStorage and replay after reload. Their variables must carry everything the write needs (incl. `user_id`) — no closures over component state.
+- Query cache is persisted (`PersistQueryClientProvider`); bump `CACHE_BUSTER` in `src/lib/queryClient.ts` when cached data shapes change. Every query key holding private rows includes the user id; the cache is cleared whenever the signed-in user changes.
+- Never treat "not loaded" as "empty": show `LoadError` with retry for failed loads; never delete based on data that wasn't confirmed by the server since the screen opened.
+- Validate URL params (`dateFromParam`); use `useToday()` (rolls over at midnight / on resume) instead of `today()` in components.
+- Parse user-typed numbers with `parseNonNegative` (blank → null, invalid → NaN); never coerce invalid input to 0.
+- Barcodes: store `canonicalBarcode()` (GTIN-13), look up with `barcodeVariants()`.
+- Screens are lazy routes in `src/app/router.tsx` and preloaded after start-up (`preloadScreens`) so they open offline.
+- Test at a mobile viewport for every user-facing flow: Playwright runs **mobile Chrome (Pixel 7) and mobile Safari/WebKit (iPhone 13)**. Database rules are tested in `supabase/tests/policies.test.ts` (all migrations run in PGlite) — add a case for every new policy.
+- E2E builds use a fake Supabase URL (`e2e/env.ts`, set in `playwright.config.ts`) and block service workers, so tests can never reach the real project; `reuseExistingServer` is off for that reason.
 - Secrets: only the Supabase anon key goes in the client (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in `.env.local`, never committed).
 - E2E tests run against an in-memory fake Supabase (`e2e/fake-supabase.ts`); extend it when the app uses new tables, filters or auth endpoints. The Chrome fake camera plays a generated video of a real EAN-13 barcode (`e2e/barcode-video.ts`, written by `e2e/global-setup.ts`), so scanning is tested with the real decoder.

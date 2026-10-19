@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDuration } from '@/domain/sets'
-import { adjustRest, alertRestOver, stopRest, useRestTimer } from '@/lib/restTimer'
+import { adjustRest, alertRestOver, stopRest, unlockAudio, useRestTimer } from '@/lib/restTimer'
 
 // How long the "Rest over" state stays visible before the bar disappears.
 const DONE_VISIBLE_MS = 6000
@@ -16,6 +16,14 @@ export function RestTimerBar() {
     const id = setInterval(() => setNow(Date.now()), 250)
     return () => clearInterval(id)
   }, [timer])
+
+  // A timer restored after a reload has no sound permission yet: take the next tap anywhere.
+  const running = timer !== null
+  useEffect(() => {
+    if (!running) return
+    document.addEventListener('pointerdown', unlockAudio, { once: true })
+    return () => document.removeEventListener('pointerdown', unlockAudio)
+  }, [running])
 
   const remainingMs = timer ? timer.endsAt - now : 0
   const done = timer != null && remainingMs <= 0

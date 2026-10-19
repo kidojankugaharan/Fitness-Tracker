@@ -33,16 +33,56 @@ export function isValidBarcode(raw: string): boolean {
   return false
 }
 
-/** Every spelling of a barcode worth looking up, most canonical first. */
+/** Compress a UPC-A to UPC-E when the code allows it (verified by expanding it back). */
+export function upcAToUpcE(upcA: string): string | null {
+  if (!/^[01]\d{11}$/.test(upcA)) return null
+  const ns = upcA.charAt(0)
+  const m = upcA.slice(1, 6)
+  const p = upcA.slice(6, 11)
+  const check = upcA.charAt(11)
+  const candidates = [
+    m.slice(0, 2) + p.slice(2) + m.charAt(2),
+    m.slice(0, 3) + p.slice(3) + '3',
+    m.slice(0, 4) + p.charAt(4) + '4',
+    m + p.charAt(4),
+  ]
+  for (const body of candidates) {
+    const upcE = `${ns}${body}${check}`
+    if (upcEToUpcA(upcE) === upcA) return upcE
+  }
+  return null
+}
+
+/**
+ * One spelling per product: GTIN-13 for UPC-A / UPC-E / GTIN-14-with-leading-0, EAN-13 as is.
+ * An 8-digit code that is valid both as EAN-8 and as UPC-E is ambiguous and kept unchanged.
+ */
+export function canonicalBarcode(raw: string): string {
+  const code = raw.trim()
+  if (code.length === 12) return `0${code}`
+  if (code.length === 14 && code.startsWith('0')) return code.slice(1)
+  if (code.length === 8 && !checkDigitValid(code)) {
+    const upcA = upcEToUpcA(code)
+    if (upcA) return `0${upcA}`
+  }
+  return code
+}
+
+/** Every spelling of the same product worth looking up, canonical form first. */
 export function barcodeVariants(raw: string): string[] {
   const code = raw.trim()
-  const out = [code]
-  if (code.length === 12) out.push(`0${code}`)
-  if (code.length === 13 && code.startsWith('0')) out.push(code.slice(1))
-  if (code.length === 14 && code.startsWith('0')) out.push(code.slice(1))
-  if (code.length === 8) {
-    const upcA = upcEToUpcA(code)
-    if (upcA) out.push(upcA, `0${upcA}`)
+  const canonical = canonicalBarcode(code)
+  const out = [canonical, code]
+  const upcA =
+    canonical.length === 13 && canonical.startsWith('0')
+      ? canonical.slice(1)
+      : code.length === 8
+        ? upcEToUpcA(code)
+        : null
+  if (upcA) {
+    out.push(upcA, `0${upcA}`)
+    const upcE = upcAToUpcE(upcA)
+    if (upcE) out.push(upcE)
   }
   return [...new Set(out)]
 }

@@ -25,6 +25,8 @@ export function useUpdateProfile() {
   const key = profileKey(userId)
 
   return useMutation({
+    // One profile write at a time: a failed change can then only roll back itself, never a later one.
+    scope: { id: 'profile' },
     mutationFn: async (patch: TablesUpdate<'profiles'>) => {
       const { data, error } = await supabase
         .from('profiles')
@@ -46,5 +48,11 @@ export function useUpdateProfile() {
       if (context?.previous) qc.setQueryData(key, context.previous)
     },
     onSuccess: (data) => qc.setQueryData(key, data),
+    onSettled: () => {
+      // Re-read from the server once the last queued change is done.
+      if (qc.isMutating({ predicate: (m) => m.options.scope?.id === 'profile' }) <= 1) {
+        void qc.invalidateQueries({ queryKey: key })
+      }
+    },
   })
 }

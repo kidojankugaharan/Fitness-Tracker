@@ -1,4 +1,5 @@
-import { formatNumber, kgToDisplay, type WeightUnit } from './units'
+import { isInvalid, parseNonNegative } from './numbers'
+import { displayToKg, formatNumber, kgToDisplay, type WeightUnit } from './units'
 
 export type ExerciseType = 'weight_reps' | 'reps' | 'time' | 'distance' | 'weight_time'
 
@@ -27,11 +28,65 @@ export function formatDuration(totalSec: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
-/** "1:15" → 75, "90" → 90, "1:02:05" → 3725. Returns null for anything unparseable. */
-export function parseDuration(text: string): number | null {
-  const parts = text.trim().split(':')
-  if (parts.length === 0 || parts.length > 3 || parts.some((p) => !/^\d+$/.test(p))) return null
-  return parts.map(Number).reduce((acc, n) => acc * 60 + n, 0)
+/** What the set logger's inputs hold: text in display units (weight in kg/lb, distance in km). */
+export type SetDraft = Record<keyof SetValues, string>
+
+export function draftFromSet(set: SetValues | undefined, unit: WeightUnit): SetDraft {
+  return {
+    weight_kg: set?.weight_kg != null ? formatNumber(kgToDisplay(set.weight_kg, unit), 2) : '',
+    reps: set?.reps != null ? String(set.reps) : '',
+    duration_sec: set?.duration_sec != null ? String(set.duration_sec) : '',
+    distance_m: set?.distance_m != null ? formatNumber(set.distance_m / 1000, 2) : '',
+  }
+}
+
+export type ParsedSet = {
+  values: SetValues
+  /** Fields that hold something that isn't a valid non-negative number. */
+  invalid: (keyof SetValues)[]
+}
+
+/** Convert logger text to canonical units (kg, metres, whole reps/seconds). */
+export function parseSetDraft(draft: SetDraft, unit: WeightUnit): ParsedSet {
+  const invalid: (keyof SetValues)[] = []
+  const read = (key: keyof SetValues) => {
+    const v = parseNonNegative(draft[key])
+    if (isInvalid(v)) invalid.push(key)
+    return isInvalid(v) ? null : v
+  }
+  const weight = read('weight_kg')
+  const reps = read('reps')
+  const duration = read('duration_sec')
+  const distanceKm = read('distance_m')
+  return {
+    values: {
+      weight_kg: weight != null ? Math.round(displayToKg(weight, unit) * 100) / 100 : null,
+      reps: reps != null ? Math.round(reps) : null,
+      duration_sec: duration != null ? Math.round(duration) : null,
+      distance_m: distanceKm != null ? Math.round(distanceKm * 1000 * 100) / 100 : null,
+    },
+    invalid,
+  }
+}
+
+/**
+ * Whether a set can be logged: no invalid input in the fields this exercise type shows, and the
+ * essential values present. Weighted types need an explicit weight (0 is allowed for empty bars).
+ */
+export function isLoggable({ values: v, invalid }: ParsedSet, type: ExerciseType): boolean {
+  if (FIELDS_BY_TYPE[type].some((f) => invalid.includes(f))) return false
+  switch (type) {
+    case 'weight_reps':
+      return v.weight_kg != null && (v.reps ?? 0) > 0
+    case 'reps':
+      return (v.reps ?? 0) > 0
+    case 'time':
+      return (v.duration_sec ?? 0) > 0
+    case 'weight_time':
+      return v.weight_kg != null && (v.duration_sec ?? 0) > 0
+    case 'distance':
+      return (v.distance_m ?? 0) > 0 || (v.duration_sec ?? 0) > 0
+  }
 }
 
 export function formatSet(set: SetValues, type: ExerciseType, unit: WeightUnit): string {

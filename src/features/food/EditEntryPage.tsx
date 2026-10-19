@@ -44,6 +44,7 @@ export function EditEntryPage() {
       <SubPage title="Edit quick add" onBack={back}>
         <QuickAddForm
           meals={meals}
+          energyUnit={profile?.energy_unit ?? 'kcal'}
           initial={{ meal: e.meal, snapshot }}
           submitLabel="Save"
           onSubmit={(r) => {

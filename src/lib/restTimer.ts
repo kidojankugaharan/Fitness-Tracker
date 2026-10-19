@@ -43,6 +43,7 @@ export function startRest(durationSec: number, label: string | null = null) {
 
 export function adjustRest(deltaSec: number) {
   if (!state) return
+  unlockAudio()
   const remaining = Math.max(MIN_SEC * 1000, state.endsAt - Date.now() + deltaSec * 1000)
   set({
     ...state,
@@ -65,7 +66,11 @@ export function useRestTimer(): RestTimer {
   )
 }
 
-function unlockAudio() {
+/**
+ * Browsers only allow sound after a user gesture. Called from taps (logging a set, ±15s, and the
+ * first tap anywhere after a timer is restored on reload) so the end-of-rest beep can play.
+ */
+export function unlockAudio() {
   try {
     audio ??= new AudioContext()
     if (audio.state === 'suspended') void audio.resume()

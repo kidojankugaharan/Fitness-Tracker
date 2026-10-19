@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { addDays, formatDayLabel, parseLocalDate, toLocalDate, today } from './dates'
+import {
+  addDays,
+  dateFromParam,
+  formatDayLabel,
+  isLocalDate,
+  msUntilMidnight,
+  parseLocalDate,
+  toLocalDate,
+  today,
+} from './dates'
 
 describe('local dates', () => {
   it('uses the local calendar day, not UTC', () => {
@@ -29,5 +38,22 @@ describe('local dates', () => {
     expect(formatDayLabel('2026-10-17', now)).toBe('Yesterday')
     expect(formatDayLabel('2026-10-19', now)).toBe('Tomorrow')
     expect(formatDayLabel('2026-10-12', now)).not.toBe('Today')
+  })
+})
+
+describe('URL date params', () => {
+  it('accepts valid dates and falls back for anything else', () => {
+    expect(isLocalDate('2026-10-18')).toBe(true)
+    expect(isLocalDate('2026-02-30')).toBe(false)
+    expect(isLocalDate(null)).toBe(false)
+    expect(dateFromParam('2026-10-18', '2026-01-01')).toBe('2026-10-18')
+    expect(dateFromParam('2026-02-30', '2026-01-01')).toBe('2026-01-01')
+    expect(dateFromParam('<script>', '2026-01-01')).toBe('2026-01-01')
+    expect(dateFromParam(null, '2026-01-01')).toBe('2026-01-01')
+  })
+
+  it('computes the time until local midnight', () => {
+    expect(msUntilMidnight(new Date(2026, 9, 18, 23, 59, 0))).toBe(60_000)
+    expect(msUntilMidnight(new Date(2026, 9, 18, 23, 59, 59, 900))).toBe(1000)
   })
 })

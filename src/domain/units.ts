@@ -32,3 +32,10 @@ export function formatWeight(kg: number, unit: WeightUnit): string {
 export function formatEnergy(kcal: number, unit: EnergyUnit): string {
   return `${Math.round(kcalToDisplay(kcal, unit))} ${unit}`
 }
+
+/** Label for an energy input in the user's unit. */
+export const energyLabel = (unit: EnergyUnit) => (unit === 'kcal' ? 'Calories (kcal)' : 'Energy (kJ)')
+
+/** Convert energy typed in the user's unit to kcal for storage. */
+export const energyToKcal = (value: number, unit: EnergyUnit) =>
+  unit === 'kcal' ? value : value / KJ_PER_KCAL

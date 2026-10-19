@@ -102,6 +102,17 @@ export function sumMacros(items: Macros[]): Macros {
   )
 }
 
+/** Which macro totals are incomplete because some logged food has no data for them. */
+export type MissingMacros = { protein: boolean; carbs: boolean; fat: boolean }
+
+export function missingMacros(foods: Per100[]): MissingMacros {
+  return {
+    protein: foods.some((f) => f.protein == null),
+    carbs: foods.some((f) => f.carbs == null),
+    fat: foods.some((f) => f.fat == null),
+  }
+}
+
 /** Fraction of goal reached, clamped to [0, 1] for progress bars. */
 export function progressFraction(eaten: number, goal: number): number {
   if (goal <= 0) return eaten > 0 ? 1 : 0

@@ -6,7 +6,12 @@ export function RequireAuth() {
   const location = useLocation()
 
   if (loading) return <FullScreenSpinner />
-  if (!session) return <Navigate to="/sign-in" replace state={{ from: location.pathname }} />
+  if (!session) {
+    // Keep the query (date, meal…) so the user lands exactly where they were going.
+    return (
+      <Navigate to="/sign-in" replace state={{ from: location.pathname + location.search + location.hash }} />
+    )
+  }
   return <Outlet />
 }
 

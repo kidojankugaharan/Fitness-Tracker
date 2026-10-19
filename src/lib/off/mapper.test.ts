@@ -71,3 +71,20 @@ describe('mapOffProduct', () => {
     expect(food?.per100.fat).toBeNull()
   })
 })
+
+describe('blank nutrient strings', () => {
+  it('treats them as missing, so kJ can still provide energy', () => {
+    const food = mapOffProduct({
+      code: '1',
+      product_name: 'X',
+      nutriments: { 'energy-kcal_100g': '', 'energy-kj_100g': '418.4', proteins_100g: ' ', fat_100g: '3' },
+    })
+    expect(food?.per100.kcal).toBe(100)
+    expect(food?.per100.protein).toBeNull()
+    expect(food?.per100.fat).toBe(3)
+  })
+
+  it('rejects a product whose only energy value is blank', () => {
+    expect(mapOffProduct({ code: '1', product_name: 'X', nutriments: { 'energy-kcal_100g': '' } })).toBeNull()
+  })
+})

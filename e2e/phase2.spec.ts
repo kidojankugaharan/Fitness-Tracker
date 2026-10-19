@@ -45,8 +45,9 @@ test('unknown barcode: enter the label once, then the next scan finds it instant
 
   // Saved per 100 g, with the label's serving pre-selected.
   await expect(page.getByRole('heading', { name: 'Protein Bar' })).toBeVisible()
+  // Stored under the canonical GTIN-13 spelling, so UPC-A and EAN-13 scans both find it.
   expect(db.foods![0]).toMatchObject({
-    off_code: code,
+    off_code: `0${code}`,
     user_id: USER_ID,
     kcal_100g: 350,
     protein_100g: 33.33,

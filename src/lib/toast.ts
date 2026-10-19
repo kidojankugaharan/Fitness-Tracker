@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 
-export type Toast = { id: number; message: string; tone: 'error' | 'info' }
+export type ToastAction = { label: string; run: () => void }
+export type Toast = { id: number; message: string; tone: 'error' | 'info'; action?: ToastAction }
 
 let toasts: Toast[] = []
 let nextId = 1
@@ -10,9 +11,15 @@ function emit() {
   for (const l of listeners) l()
 }
 
-export function showToast(message: string, tone: Toast['tone'] = 'error', durationMs = 5000) {
+/** Show a message; an optional action (e.g. Retry, Undo) appears as a button on the toast. */
+export function showToast(
+  message: string,
+  tone: Toast['tone'] = 'error',
+  durationMs = 5000,
+  action?: ToastAction,
+) {
   const id = nextId++
-  toasts = [...toasts.slice(-2), { id, message, tone }]
+  toasts = [...toasts.slice(-2), { id, message, tone, action }]
   emit()
   setTimeout(() => dismissToast(id), durationMs)
 }

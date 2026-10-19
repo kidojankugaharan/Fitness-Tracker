@@ -10,6 +10,8 @@ type Props = {
   min?: number
   inputMode?: 'decimal' | 'numeric' | 'text'
   placeholder?: string
+  /** Marks the field as holding an invalid value. */
+  invalid?: boolean
 }
 
 /** Big −/+ buttons around a text input: fast one-handed entry with the phone keyboard as a fallback. */
@@ -22,6 +24,7 @@ export function NumberStepper({
   min = 0,
   inputMode = 'decimal',
   placeholder,
+  invalid = false,
 }: Props) {
   const id = useId()
   const bump = (dir: 1 | -1) => {
@@ -36,7 +39,9 @@ export function NumberStepper({
       <label htmlFor={id} className="text-muted mb-1 block text-xs font-medium">
         {label}
       </label>
-      <div className="border-border bg-surface-2 flex items-stretch overflow-hidden rounded-xl border">
+      <div
+        className={`bg-surface-2 flex items-stretch overflow-hidden rounded-xl border ${invalid ? 'border-danger' : 'border-border'}`}
+      >
         <button
           type="button"
           aria-label={`Decrease ${label}`}
@@ -51,6 +56,7 @@ export function NumberStepper({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          aria-invalid={invalid}
           onFocus={(e) => e.target.select()}
           className="min-w-0 flex-1 bg-transparent text-center text-lg font-semibold tabular-nums outline-none"
         />

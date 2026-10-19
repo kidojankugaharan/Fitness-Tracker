@@ -112,7 +112,11 @@ export type Database = {
       >
       recipe_items: Table<
         { recipe_id: string; food_id: string; position: number; grams: number },
-        'recipe_id' | 'food_id' | 'grams'
+        'recipe_id' | 'food_id' | 'grams',
+        [
+          ForeignKey<'recipe_items_recipe_id_fkey', 'recipe_id', 'recipes'>,
+          ForeignKey<'recipe_items_food_id_fkey', 'food_id', 'foods'>,
+        ]
       >
       exercises: Table<
         {
@@ -138,7 +142,11 @@ export type Database = {
           target_sets: number
           target_reps: number | null
         },
-        'routine_id' | 'exercise_id'
+        'routine_id' | 'exercise_id',
+        [
+          ForeignKey<'routine_items_routine_id_fkey', 'routine_id', 'routines'>,
+          ForeignKey<'routine_items_exercise_id_fkey', 'exercise_id', 'exercises'>,
+        ]
       >
       workouts: Table<
         {
@@ -151,7 +159,8 @@ export type Database = {
           routine_id: string | null
           created_at: string
         },
-        'date'
+        'date',
+        [ForeignKey<'workouts_routine_id_fkey', 'routine_id', 'routines'>]
       >
       workout_sets: Table<
         {

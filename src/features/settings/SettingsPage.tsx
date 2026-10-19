@@ -1,9 +1,11 @@
-import { clsx } from 'clsx'
 import { useState } from 'react'
 import { useSession } from '@/app/useAuth'
 import { formatDuration } from '@/domain/sets'
 import { Button } from '@/components/Button'
 import { Card, Page } from '@/components/Page'
+import { Segmented } from '@/components/Segmented'
+import { energyLabel, energyToKcal, kcalToDisplay, type EnergyUnit } from '@/domain/units'
+import { stopRest } from '@/lib/restTimer'
 import { showToast } from '@/lib/toast'
 import { MIN_PASSWORD_LENGTH, signOut, useSetPassword } from '@/lib/supabase/account'
 import { useProfile, useUpdateProfile, type Profile } from '@/lib/supabase/profile'
@@ -77,7 +79,7 @@ function PasswordForm() {
 const REST_OPTIONS_SEC = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300]
 
 const GOAL_FIELDS = [
-  { key: 'goal_kcal', label: 'Calories', unit: 'kcal', max: 20000 },
+  { key: 'goal_kcal', label: 'Energy', unit: 'kcal', max: 20000 },
   { key: 'goal_protein_g', label: 'Protein', unit: 'g', max: 1000 },
   { key: 'goal_carbs_g', label: 'Carbs', unit: 'g', max: 2000 },
   { key: 'goal_fat_g', label: 'Fat', unit: 'g', max: 1000 },
@@ -87,8 +89,10 @@ type GoalKey = (typeof GOAL_FIELDS)[number]['key']
 
 function GoalsForm({ profile }: { profile: Profile }) {
   const update = useUpdateProfile()
+  const unit: EnergyUnit = profile.energy_unit
+  // The energy goal is typed in the display unit; it is stored in kcal.
   const [values, setValues] = useState<Record<GoalKey, string>>(() => ({
-    goal_kcal: String(profile.goal_kcal),
+    goal_kcal: String(Math.round(kcalToDisplay(profile.goal_kcal, unit))),
     goal_protein_g: String(profile.goal_protein_g),
     goal_carbs_g: String(profile.goal_carbs_g),
     goal_fat_g: String(profile.goal_fat_g),
@@ -96,8 +100,10 @@ function GoalsForm({ profile }: { profile: Profile }) {
 
   const parsed = Object.fromEntries(
     GOAL_FIELDS.map(({ key, max }) => {
-      const n = Number(values[key])
-      return [key, Number.isInteger(n) && n >= 0 && n <= max ? n : null]
+      const typed = Number(values[key])
+      if (values[key].trim() === '' || !Number.isFinite(typed) || typed < 0) return [key, null]
+      const n = key === 'goal_kcal' ? Math.round(energyToKcal(typed, unit)) : typed
+      return [key, Number.isInteger(n) && n <= max ? n : null]
     }),
   ) as Record<GoalKey, number | null>
   const valid = Object.values(parsed).every((v) => v !== null)
@@ -112,17 +118,20 @@ function GoalsForm({ profile }: { profile: Profile }) {
         onSubmit={(e) => {
           e.preventDefault()
           if (!valid) return
-          update.mutate(parsed as Record<GoalKey, number>, {
-            onSuccess: () => showToast('Goals saved', 'info', 2000),
-          })
+          // mutateAsync, not mutate callbacks: saving remounts this form (its key is the saved goals),
+          // which would drop per-call callbacks. Errors are already shown by the global handler.
+          update
+            .mutateAsync(parsed as Record<GoalKey, number>)
+            .then(() => showToast('Goals saved', 'info', 2000))
+            .catch(() => {})
         }}
       >
         <h2 className="font-semibold">Daily goals</h2>
         <div className="grid grid-cols-2 gap-3">
-          {GOAL_FIELDS.map(({ key, label, unit }) => (
+          {GOAL_FIELDS.map(({ key, label, unit: fieldUnit }) => (
             <label key={key} className="block">
               <span className="text-muted mb-1 block text-xs font-medium">
-                {label} ({unit})
+                {key === 'goal_kcal' ? energyLabel(unit) : `${label} (${fieldUnit})`}
               </span>
               <input
                 inputMode="numeric"
@@ -158,22 +167,34 @@ export function SettingsPage() {
       {profile && (
         <Card className="space-y-4">
           <Segmented
+            inline
             label="Weight"
             value={profile.units}
-            options={['kg', 'lb'] as const}
+            options={[
+              { value: 'kg', label: 'kg' },
+              { value: 'lb', label: 'lb' },
+            ]}
             onChange={(units) => update.mutate({ units })}
           />
           <Segmented
+            inline
             label="Energy"
             value={profile.energy_unit}
-            options={['kcal', 'kJ'] as const}
+            options={[
+              { value: 'kcal', label: 'kcal' },
+              { value: 'kJ', label: 'kJ' },
+            ]}
             onChange={(energy_unit) => update.mutate({ energy_unit })}
           />
           <label className="flex items-center justify-between gap-4">
             <span className="font-medium">Rest timer</span>
             <select
               value={profile.rest_timer_default_sec}
-              onChange={(e) => update.mutate({ rest_timer_default_sec: Number(e.target.value) })}
+              onChange={(e) => {
+                const sec = Number(e.target.value)
+                if (sec === 0) stopRest() // turning the timer off also stops one that's running
+                update.mutate({ rest_timer_default_sec: sec })
+              }}
               className="bg-surface-2 min-h-10 rounded-xl px-3 text-sm font-semibold"
             >
               {REST_OPTIONS_SEC.map((sec) => (
@@ -186,7 +207,19 @@ export function SettingsPage() {
         </Card>
       )}
 
-      {profile && <GoalsForm key={profile.updated_at} profile={profile} />}
+      {/* Remount (resetting unsaved edits) only when the saved goals or energy unit change. */}
+      {profile && (
+        <GoalsForm
+          key={[
+            profile.goal_kcal,
+            profile.goal_protein_g,
+            profile.goal_carbs_g,
+            profile.goal_fat_g,
+            profile.energy_unit,
+          ].join()}
+          profile={profile}
+        />
+      )}
 
       <PasswordForm />
 
@@ -194,40 +227,5 @@ export function SettingsPage() {
         Sign out
       </Button>
     </Page>
-  )
-}
-
-function Segmented<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: T
-  options: readonly T[]
-  onChange: (value: T) => void
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="font-medium">{label}</span>
-      <div role="radiogroup" aria-label={label} className="bg-surface-2 flex rounded-xl p-1">
-        {options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={option === value}
-            onClick={() => option !== value && onChange(option)}
-            className={clsx(
-              'min-h-9 min-w-14 rounded-lg px-3 text-sm font-semibold',
-              option === value ? 'bg-surface text-text shadow-sm' : 'text-muted',
-            )}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
   )
 }

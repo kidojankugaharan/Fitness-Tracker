@@ -1,15 +1,27 @@
 import { clsx } from 'clsx'
-import { progressFraction, type Macros } from '@/domain/macros'
+import { progressFraction, type Macros, type MissingMacros } from '@/domain/macros'
 import { kcalToDisplay, type EnergyUnit } from '@/domain/units'
 import type { Profile } from '@/lib/supabase/profile'
 
+const NONE_MISSING: MissingMacros = { protein: false, carbs: false, fat: false }
+
 /** Calories remaining plus protein / carbs / fat bars against the user's goals. */
-export function MacroSummary({ eaten, profile }: { eaten: Macros; profile: Profile }) {
+export function MacroSummary({
+  eaten,
+  profile,
+  missing = NONE_MISSING,
+}: {
+  eaten: Macros
+  profile: Profile
+  /** Macros where some logged food has no data: their totals are a lower bound. */
+  missing?: MissingMacros
+}) {
   const unit: EnergyUnit = profile.energy_unit
   const goal = kcalToDisplay(profile.goal_kcal, unit)
   const consumed = kcalToDisplay(eaten.kcal, unit)
   const remaining = Math.round(goal - consumed)
   const over = remaining < 0
+  const anyMissing = missing.protein || missing.carbs || missing.fat
 
   return (
     <div>
@@ -25,34 +37,76 @@ export function MacroSummary({ eaten, profile }: { eaten: Macros; profile: Profi
           {Math.round(consumed)} / {Math.round(goal)} eaten
         </p>
       </div>
-      <Bar fraction={progressFraction(eaten.kcal, profile.goal_kcal)} over={over} className="mt-3" />
+      <Bar
+        label="Energy"
+        fraction={progressFraction(eaten.kcal, profile.goal_kcal)}
+        over={over}
+        className="mt-3"
+      />
       <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-        <MacroBar label="Protein" eaten={eaten.protein} goal={profile.goal_protein_g} />
-        <MacroBar label="Carbs" eaten={eaten.carbs} goal={profile.goal_carbs_g} />
-        <MacroBar label="Fat" eaten={eaten.fat} goal={profile.goal_fat_g} />
+        <MacroBar
+          label="Protein"
+          eaten={eaten.protein}
+          goal={profile.goal_protein_g}
+          partial={missing.protein}
+        />
+        <MacroBar label="Carbs" eaten={eaten.carbs} goal={profile.goal_carbs_g} partial={missing.carbs} />
+        <MacroBar label="Fat" eaten={eaten.fat} goal={profile.goal_fat_g} partial={missing.fat} />
       </div>
+      {anyMissing && (
+        <p className="text-muted mt-2 text-xs">
+          * Some foods have no data for this, so the total may be higher.
+        </p>
+      )}
     </div>
   )
 }
 
-function MacroBar({ label, eaten, goal }: { label: string; eaten: number; goal: number }) {
+function MacroBar({
+  label,
+  eaten,
+  goal,
+  partial,
+}: {
+  label: string
+  eaten: number
+  goal: number
+  partial: boolean
+}) {
   return (
     <div>
       <p className="text-muted">{label}</p>
       <p className="font-semibold tabular-nums">
         {Math.round(eaten)}
+        {partial && <span aria-label="incomplete">*</span>}
         <span className="text-muted font-normal"> / {goal} g</span>
       </p>
-      <Bar fraction={progressFraction(eaten, goal)} over={eaten > goal * 1.05} className="mt-1" />
+      <Bar
+        label={label}
+        fraction={progressFraction(eaten, goal)}
+        over={eaten > goal * 1.05}
+        className="mt-1"
+      />
     </div>
   )
 }
 
-function Bar({ fraction, over, className }: { fraction: number; over?: boolean; className?: string }) {
+function Bar({
+  label,
+  fraction,
+  over,
+  className,
+}: {
+  label: string
+  fraction: number
+  over?: boolean
+  className?: string
+}) {
   return (
     <div
       className={clsx('bg-surface-2 h-2 overflow-hidden rounded-full', className)}
       role="progressbar"
+      aria-label={`${label} goal progress`}
       aria-valuenow={Math.round(fraction * 100)}
       aria-valuemin={0}
       aria-valuemax={100}

@@ -69,3 +69,19 @@ export function SubPage({
     </div>
   )
 }
+
+/**
+ * Shown when data couldn't be loaded. Never render "empty" for a failed load: at the gym that
+ * looks like lost data and invites logging things twice.
+ */
+export function LoadError({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <Card className="space-y-2 text-center">
+      <p className="font-semibold">Couldn't load {what}</p>
+      <p className="text-muted text-sm">Check your connection — nothing has been lost.</p>
+      <button type="button" onClick={onRetry} className="text-accent min-h-11 px-4 font-semibold">
+        Try again
+      </button>
+    </Card>
+  )
+}

@@ -1,18 +1,19 @@
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { FullScreenSpinner } from '@/app/RequireAuth'
-import { Card, EmptyState, Page } from '@/components/Page'
+import { Card, EmptyState, LoadError, Page } from '@/components/Page'
 import { formatDayLabel } from '@/domain/dates'
 import { annotatePRs, summarizeRecords } from '@/domain/prs'
 import { formatSet } from '@/domain/sets'
 import { formatWeight, type WeightUnit } from '@/domain/units'
-import { useExerciseMap } from '@/lib/supabase/exercises'
+import { useExercises } from '@/lib/supabase/exercises'
 import { useProfile } from '@/lib/supabase/profile'
 import { useExerciseHistory, type HistorySet } from '@/lib/supabase/workouts'
 
 export function ExerciseHistoryPage() {
   const { exerciseId = '' } = useParams()
-  const exercise = useExerciseMap().get(exerciseId)
+  const exercises = useExercises()
+  const exercise = exercises.data?.find((e) => e.id === exerciseId)
   const history = useExerciseHistory(exerciseId)
   const units: WeightUnit = useProfile().data?.units ?? 'kg'
 
@@ -20,6 +21,31 @@ export function ExerciseHistoryPage() {
   const records = useMemo(() => summarizeRecords(history.data ?? []), [history.data])
   const prs = useMemo(() => annotatePRs(history.data ?? []), [history.data])
 
+  const back = (
+    <Link to="/workout" className="text-accent text-sm font-semibold">
+      Done
+    </Link>
+  )
+  if (exercises.isError || history.isError) {
+    return (
+      <Page title="Exercise" action={back}>
+        <LoadError
+          what="this exercise"
+          onRetry={() => {
+            void exercises.refetch()
+            void history.refetch()
+          }}
+        />
+      </Page>
+    )
+  }
+  if (exercises.isSuccess && !exercise) {
+    return (
+      <Page title="Exercise" action={back}>
+        <EmptyState title="Exercise not found" body="It may have been deleted." />
+      </Page>
+    )
+  }
   if (!exercise || history.isPending) return <FullScreenSpinner />
 
   const showWeights = exercise.type === 'weight_reps'

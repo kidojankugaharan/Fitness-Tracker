@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import { useSession } from '@/app/useAuth'
 import { Button } from '@/components/Button'
-import { EmptyState, Page } from '@/components/Page'
+import { EmptyState, LoadError, Page } from '@/components/Page'
 import { stopRest } from '@/lib/restTimer'
 import { useExerciseMap } from '@/lib/supabase/exercises'
 import { useProfile } from '@/lib/supabase/profile'
@@ -29,12 +30,18 @@ function savePending(workoutId: string, ids: string[]) {
 }
 
 export function ActiveWorkout({ workout }: { workout: Workout }) {
-  const { data: sets = [] } = useWorkoutSets(workout.id)
+  const userId = useSession().user.id
+  const setsQuery = useWorkoutSets(workout.id)
+  const sets = useMemo(() => setsQuery.data ?? [], [setsQuery.data])
+  // Sets may come from the copy saved on this phone (works offline). That is enough to finish, but
+  // "this workout is empty, delete it" is only trusted after the server confirmed it since opening.
+  const setsKnown = setsQuery.isSuccess
+  const confirmedEmpty = setsQuery.isFetchedAfterMount && !setsQuery.isFetching && sets.length === 0
   const exercises = useExerciseMap()
   const { data: profile } = useProfile()
   const units = profile?.units ?? 'kg'
   const restSec = profile?.rest_timer_default_sec ?? 90
-  const finish = useFinishWorkout()
+  const finish = useFinishWorkout(workout.id)
   const discard = useDeleteWorkout()
   const [pending, setPending] = useState(() => loadPending(workout.id))
   const [picking, setPicking] = useState(false)
@@ -52,10 +59,12 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
   }
 
   const end = (kind: 'finish' | 'discard') => {
+    // Never infer "empty, so delete it" from sets that haven't loaded (slow or no signal).
+    if (kind === 'finish' && !setsKnown) return
     savePending(workout.id, [])
     stopRest()
-    if (kind === 'discard' || sets.length === 0) discard.mutate(workout.id)
-    else finish.mutate(workout.id)
+    if (kind === 'discard' || confirmedEmpty) discard.mutate(workout.id)
+    else finish.mutate({ workoutId: workout.id, userId, endedAt: new Date().toISOString() })
   }
 
   const started = new Date(workout.started_at).toLocaleTimeString(undefined, {
@@ -78,7 +87,10 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
 
   return (
     <Page title="Workout" action={<span className="text-muted text-sm">Started {started}</span>}>
-      {order.length === 0 && (
+      {setsQuery.isError && !setsQuery.data && (
+        <LoadError what="this workout's sets" onRetry={() => setsQuery.refetch()} />
+      )}
+      {setsKnown && order.length === 0 && (
         <EmptyState title="Add your first exercise" body="Pick from the library or create your own." />
       )}
 
@@ -122,7 +134,7 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
             <Button variant="ghost" className="flex-1" onClick={() => setConfirmDiscard(true)}>
               Discard
             </Button>
-            <Button className="flex-[2]" disabled={finish.isPending} onClick={() => end('finish')}>
+            <Button className="flex-[2]" disabled={!setsKnown} onClick={() => end('finish')}>
               Finish workout
             </Button>
           </>

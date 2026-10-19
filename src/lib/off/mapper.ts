@@ -37,6 +37,8 @@ const MAX_KCAL_100G = 900
 const MAX_GRAMS_100G = 100
 
 function num(value: unknown): number | null {
+  // Number('') is 0: blank strings must count as missing, not as a real zero.
+  if (typeof value === 'string' && value.trim() === '') return null
   const n = typeof value === 'string' ? Number(value) : value
   return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null
 }

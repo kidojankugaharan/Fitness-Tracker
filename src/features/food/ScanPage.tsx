@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { isValidBarcode } from '@/domain/barcode'
-import { today } from '@/domain/dates'
+import { dateFromParam } from '@/domain/dates'
 import { getDetector } from '@/lib/barcode/detector'
 import { barcodePath, diaryPath } from './paths'
 
 const SCAN_INTERVAL_MS = 120
+// After "Add & scan next", the previous item must be out of view this long before it can scan again.
+const IGNORE_CLEAR_MS = 1000
 
 type CameraState =
   { kind: 'starting' } | { kind: 'scanning'; torch: boolean | null } | { kind: 'error'; message: string }
@@ -17,7 +19,7 @@ export function ScanPage() {
   const [params] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const date = params.get('date') ?? today()
+  const date = dateFromParam(params.get('date'))
   const meal = params.get('meal') ?? undefined
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<MediaStreamTrack | null>(null)
@@ -32,6 +34,7 @@ export function ScanPage() {
   useEffect(() => {
     let stopped = false
     let ignore = (location.state as { ignore?: string } | null)?.ignore ?? null
+    let ignoreAbsentSince: number | null = null
     let stream: MediaStream | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -52,7 +55,11 @@ export function ScanPage() {
           }),
         ])
         stream = media
-        if (stopped) return
+        if (stopped) {
+          // Closed while the camera was starting: the cleanup already ran, so stop it here.
+          media.getTracks().forEach((t) => t.stop())
+          return
+        }
         const video = videoRef.current!
         video.srcObject = media
         await video.play()
@@ -67,9 +74,14 @@ export function ScanPage() {
             try {
               const codes = await detector.detect(video)
               const valid = codes.map((c) => c.rawValue.trim()).filter(isValidBarcode)
-              // After "Add & scan next" the same item is often still in view: ignore it until it
-              // has left the frame, so one tap never logs it twice.
-              if (ignore !== null && !valid.includes(ignore)) ignore = null
+              // After "Add & scan next" the same item is often still in view: ignore it until it has
+              // been out of the frame for a while (a single blurry frame doesn't count), so one tap
+              // never logs it twice.
+              if (ignore !== null) {
+                if (valid.includes(ignore)) ignoreAbsentSince = null
+                else if (ignoreAbsentSince === null) ignoreAbsentSince = Date.now()
+                else if (Date.now() - ignoreAbsentSince >= IGNORE_CLEAR_MS) ignore = null
+              }
               const hit = valid.find((c) => c !== ignore)
               if (hit && !stopped) {
                 stopped = true

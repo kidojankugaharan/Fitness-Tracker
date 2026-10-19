@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test'
-import { loadEnv } from 'vite'
+import { E2E_SUPABASE_URL } from './env'
 
 // A tiny in-memory stand-in for Supabase's REST API (PostgREST), just enough for the app's queries,
 // so UI flows can be tested end to end without a real project or test accounts.
@@ -9,8 +9,7 @@ export const USER_ID = '11111111-1111-4111-8111-111111111111'
 type Row = Record<string, unknown>
 type Tables = Record<string, Row[]>
 
-const env = loadEnv('production', process.cwd(), '')
-const projectRef = new URL(env.VITE_SUPABASE_URL ?? 'https://example.supabase.co').hostname.split('.')[0]
+const projectRef = new URL(E2E_SUPABASE_URL).hostname.split('.')[0]
 
 function b64url(value: object) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')

@@ -1,8 +1,9 @@
-import { clsx } from 'clsx'
 import { useState } from 'react'
 import { Button } from '@/components/Button'
+import { Segmented } from '@/components/Segmented'
 import { per100FromLabel, type Serving } from '@/domain/macros'
-import { formatNumber } from '@/domain/units'
+import { isInvalid, parseNonNegative as parse } from '@/domain/numbers'
+import { energyLabel, energyToKcal, formatNumber, type EnergyUnit } from '@/domain/units'
 import { useCreateCustomFood, type FoodChoice } from '@/lib/supabase/food'
 
 type Basis = 'serving' | '100g'
@@ -11,12 +12,14 @@ type Props = {
   barcode: string | null
   initialName?: string | null
   initialBrand?: string | null
+  /** Calories are typed in the user's display unit and stored as kcal. */
+  energyUnit: EnergyUnit
   onCreated: (choice: FoodChoice) => void
   onCancel?: () => void
 }
 
 const NUTRIENTS = [
-  { key: 'kcal', label: 'Calories (kcal)', required: true },
+  { key: 'kcal', label: 'Energy', required: true },
   { key: 'protein', label: 'Protein (g)', required: false },
   { key: 'carbs', label: 'Carbs (g)', required: false },
   { key: 'fat', label: 'Fat (g)', required: false },
@@ -34,15 +37,18 @@ type NutrientKey = (typeof NUTRIENTS)[number]['key'] | (typeof EXTRA_NUTRIENTS)[
 const inputClass =
   'border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base'
 
-function parse(value: string): number | null {
-  if (value.trim() === '') return null
-  const n = Number(value.replace(',', '.'))
-  return Number.isFinite(n) && n >= 0 ? n : NaN
-}
-
 /** Enter a food from its nutrition label, as printed (per serving or per 100 g). */
-export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, onCancel }: Props) {
+export function CustomFoodForm({
+  barcode,
+  initialName,
+  initialBrand,
+  energyUnit,
+  onCreated,
+  onCancel,
+}: Props) {
   const create = useCreateCustomFood()
+  // One id per form: retrying a save that already reached the server can't create a second food.
+  const [createId] = useState(() => crypto.randomUUID())
   const [name, setName] = useState(initialName ?? '')
   const [brand, setBrand] = useState(initialBrand ?? '')
   const [basis, setBasis] = useState<Basis>('serving')
@@ -65,10 +71,11 @@ export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, 
   >
   const grams = parse(servingGrams)
   const servingValid = basis === '100g' ? grams === null || (grams ?? 0) > 0 : (grams ?? 0) > 0
-  const anyInvalid = Object.values(parsed).some((v) => Number.isNaN(v))
-  const valid = name.trim() !== '' && parsed.kcal != null && !anyInvalid && servingValid
+  const anyInvalid = Object.values(parsed).some(isInvalid)
+  const kcal = parsed.kcal == null ? null : energyToKcal(parsed.kcal, energyUnit)
+  const valid = name.trim() !== '' && kcal != null && !anyInvalid && servingValid
   const basisGrams = basis === '100g' ? 100 : (grams ?? 0)
-  const per100 = valid ? per100FromLabel({ ...parsed, kcal: parsed.kcal! }, basisGrams) : null
+  const per100 = valid ? per100FromLabel({ ...parsed, kcal: kcal! }, basisGrams) : null
   // More energy than pure fat: almost certainly a typo in the serving size or calories.
   const tooDense = per100 != null && per100.kcal > 900
 
@@ -79,7 +86,7 @@ export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, 
         ? [{ label: servingLabel.trim() || `1 serving (${formatNumber(grams, 1)} g)`, grams }]
         : []
     create.mutate(
-      { name, brand: brand || null, barcode, per100, servings },
+      { input: { name, brand: brand || null, barcode, per100, servings }, id: createId },
       { onSuccess: (choice) => onCreated(choice) },
     )
   }
@@ -119,31 +126,15 @@ export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, 
         />
       </label>
 
-      <div>
-        <span className="text-muted mb-1 block text-xs font-medium">Label values are per</span>
-        <div role="radiogroup" aria-label="Label values are per" className="bg-surface-2 flex rounded-xl p-1">
-          {(
-            [
-              ['serving', 'Serving'],
-              ['100g', '100 g'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={basis === value}
-              onClick={() => setBasis(value)}
-              className={clsx(
-                'min-h-10 flex-1 rounded-lg text-sm font-semibold',
-                basis === value ? 'bg-surface text-text shadow-sm' : 'text-muted',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Segmented
+        label="Label values are per"
+        value={basis}
+        options={[
+          { value: 'serving', label: 'Serving' },
+          { value: '100g', label: '100 g' },
+        ]}
+        onChange={setBasis}
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
@@ -174,10 +165,10 @@ export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, 
         {NUTRIENTS.map(({ key, label, required }) => (
           <NutrientInput
             key={key}
-            label={label}
+            label={key === 'kcal' ? energyLabel(energyUnit) : label}
             required={required}
             value={values[key]}
-            invalid={Number.isNaN(parsed[key])}
+            invalid={isInvalid(parsed[key])}
             onChange={(v) => setValues((s) => ({ ...s, [key]: v }))}
           />
         ))}
@@ -191,7 +182,7 @@ export function CustomFoodForm({ barcode, initialName, initialBrand, onCreated, 
               key={key}
               label={label}
               value={values[key]}
-              invalid={Number.isNaN(parsed[key])}
+              invalid={isInvalid(parsed[key])}
               onChange={(v) => setValues((s) => ({ ...s, [key]: v }))}
             />
           ))}

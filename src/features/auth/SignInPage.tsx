@@ -4,7 +4,11 @@ import { Navigate, useLocation } from 'react-router'
 import { useAuth } from '@/app/useAuth'
 import { FullScreenSpinner } from '@/app/RequireAuth'
 import { Button } from '@/components/Button'
-import { supabase } from '@/lib/supabase/client'
+import {
+  sendSignInEmail,
+  signInWithPassword as passwordSignIn,
+  verifySignInCode,
+} from '@/lib/supabase/account'
 
 // Password sign-in sends no email, so it is the default. Email codes/links are the fallback for a
 // first sign-in or a forgotten password; Supabase's built-in mailer allows only a few emails per
@@ -30,8 +34,7 @@ export function SignInPage() {
 
   if (loading) return <FullScreenSpinner />
   if (session) {
-    const from = (location.state as { from?: string } | null)?.from ?? '/'
-    return <Navigate to={from} replace />
+    return <Navigate to={safeReturnPath((location.state as { from?: unknown } | null)?.from)} replace />
   }
 
   const switchMode = (next: Mode) => {
@@ -43,7 +46,7 @@ export function SignInPage() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    const { error } = await passwordSignIn(email.trim(), password)
     setBusy(false)
     if (error) setError(friendlyError(error))
   }
@@ -53,10 +56,7 @@ export function SignInPage() {
     if (cooldown.remaining > 0) return
     setBusy(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: window.location.origin },
-    })
+    const { error } = await sendSignInEmail(email.trim())
     setBusy(false)
     if (error) {
       setError(friendlyError(error))
@@ -73,7 +73,7 @@ export function SignInPage() {
     if (mode.kind !== 'sent') return
     setBusy(true)
     setError(null)
-    const { error } = await supabase.auth.verifyOtp({ email: mode.email, token: code.trim(), type: 'email' })
+    const { error } = await verifySignInCode(mode.email, code.trim())
     setBusy(false)
     if (error) setError(friendlyError(error))
   }
@@ -235,4 +235,9 @@ function useCooldown() {
       setRemaining(RESEND_COOLDOWN_SEC)
     },
   }
+}
+
+/** Only return to paths inside this app (never `//evil.example` or an absolute URL). */
+function safeReturnPath(from: unknown): string {
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/'
 }

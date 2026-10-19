@@ -1,6 +1,6 @@
 import { FullScreenSpinner } from '@/app/RequireAuth'
 import { Button } from '@/components/Button'
-import { Card, EmptyState, Page } from '@/components/Page'
+import { Card, EmptyState, LoadError, Page } from '@/components/Page'
 import { formatDayLabel } from '@/domain/dates'
 import { useExerciseMap } from '@/lib/supabase/exercises'
 import {
@@ -15,6 +15,14 @@ export function WorkoutPage() {
   const active = useActiveWorkout()
   if (active.isPending) return <FullScreenSpinner />
   if (active.data) return <ActiveWorkout workout={active.data} />
+  // A failed lookup must not look like "no workout in progress": that invites starting a second one.
+  if (active.isError) {
+    return (
+      <Page title="Workout">
+        <LoadError what="your workout" onRetry={() => active.refetch()} />
+      </Page>
+    )
+  }
   return <StartWorkout />
 }
 
@@ -24,11 +32,16 @@ function StartWorkout() {
 
   return (
     <Page title="Workout">
-      <Button className="w-full text-lg" disabled={start.isPending} onClick={() => start.mutate()}>
+      <Button
+        className="w-full text-lg"
+        disabled={start.isPending}
+        onClick={() => start.mutate(crypto.randomUUID())}
+      >
         {start.isPending ? 'Starting…' : 'Start workout'}
       </Button>
 
       <h2 className="text-muted pt-3 text-sm font-semibold tracking-wide uppercase">History</h2>
+      {recent.isError && <LoadError what="your history" onRetry={() => recent.refetch()} />}
       {recent.data?.length === 0 && (
         <EmptyState title="No workouts yet" body="Start your first workout and it will show up here." />
       )}
