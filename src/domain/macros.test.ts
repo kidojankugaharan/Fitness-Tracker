@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   isWeightOnlyLabel,
+  per100FromLabel,
+  QUICK_ADD_GRAMS,
+  quickAddSnapshot,
   macrosFor,
   parseServings,
   parseSnapshot,
@@ -88,5 +91,47 @@ describe('isWeightOnlyLabel', () => {
     expect(isWeightOnlyLabel('40 g', 30)).toBe(false)
     expect(isWeightOnlyLabel('1 slice', 30)).toBe(false)
     expect(isWeightOnlyLabel('2 scoops (60 g)', 60)).toBe(false)
+  })
+})
+
+describe('quick add', () => {
+  it('stores typed calories/macros so that 100 g reproduces them exactly', () => {
+    const snap = quickAddSnapshot({ name: '  ', kcal: 650, protein: 40, carbs: null, fat: 20 })
+    expect(snap.name).toBe('Quick add')
+    expect(snap.kind).toBe('quick')
+    expect(macrosFor(snap.per100, QUICK_ADD_GRAMS)).toEqual({ kcal: 650, protein: 40, carbs: 0, fat: 20 })
+    expect(parseSnapshot(JSON.parse(JSON.stringify(snap))).kind).toBe('quick')
+    expect(parseSnapshot({ name: 'Oats', per100: { kcal: 1 } }).kind).toBeUndefined()
+  })
+})
+
+describe('per100FromLabel', () => {
+  const label = {
+    kcal: 120,
+    protein: 5,
+    carbs: 20,
+    fat: 2.5,
+    fiber: null,
+    sugar: 1,
+    sat_fat: null,
+    sodium_mg: 90,
+  }
+
+  it('scales per-serving label values to per 100 g', () => {
+    expect(per100FromLabel(label, 30)).toEqual({
+      kcal: 400,
+      protein: 16.67,
+      carbs: 66.67,
+      fat: 8.33,
+      fiber: null,
+      sugar: 3.33,
+      sat_fat: null,
+      sodium_mg: 300,
+    })
+  })
+
+  it('is identity for a 100 g basis and rejects non-positive bases', () => {
+    expect(per100FromLabel(label, 100).kcal).toBe(120)
+    expect(() => per100FromLabel(label, 0)).toThrow()
   })
 })

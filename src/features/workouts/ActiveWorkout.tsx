@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/Button'
 import { EmptyState, Page } from '@/components/Page'
+import { stopRest } from '@/lib/restTimer'
 import { useExerciseMap } from '@/lib/supabase/exercises'
 import { useProfile } from '@/lib/supabase/profile'
 import { useDeleteWorkout, useFinishWorkout, useWorkoutSets, type Workout } from '@/lib/supabase/workouts'
@@ -30,7 +31,9 @@ function savePending(workoutId: string, ids: string[]) {
 export function ActiveWorkout({ workout }: { workout: Workout }) {
   const { data: sets = [] } = useWorkoutSets(workout.id)
   const exercises = useExerciseMap()
-  const units = useProfile().data?.units ?? 'kg'
+  const { data: profile } = useProfile()
+  const units = profile?.units ?? 'kg'
+  const restSec = profile?.rest_timer_default_sec ?? 90
   const finish = useFinishWorkout()
   const discard = useDeleteWorkout()
   const [pending, setPending] = useState(() => loadPending(workout.id))
@@ -50,6 +53,7 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
 
   const end = (kind: 'finish' | 'discard') => {
     savePending(workout.id, [])
+    stopRest()
     if (kind === 'discard' || sets.length === 0) discard.mutate(workout.id)
     else finish.mutate(workout.id)
   }
@@ -89,6 +93,7 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
             exerciseOrder={index}
             sets={sets.filter((s) => s.exercise_id === exerciseId)}
             units={units}
+            restSec={restSec}
             onRemove={
               sets.some((s) => s.exercise_id === exerciseId)
                 ? undefined

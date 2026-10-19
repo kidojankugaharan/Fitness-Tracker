@@ -28,14 +28,14 @@ A mobile-friendly web app combining **food & macro logging** (MyFitnessPal-style
 - **React Router** for routing
 - **Recharts** for charts
 - **vite-plugin-pwa** for installability and asset caching
-- **Barcode** (later): native `BarcodeDetector`, fallback `@zxing/browser`
+- **Barcode**: native `BarcodeDetector` (Chrome on Android), else the `barcode-detector` ponyfill (ZXing WebAssembly) loaded lazily; its `.wasm` is bundled (not CDN), excluded from precache and cached on first use (`src/lib/barcode/detector.ts`). Camera needs HTTPS (or localhost).
 - **Testing**: Vitest (domain logic: PRs, 1RM, macro math, unit conversion), Playwright (E2E at mobile viewport)
 - **Tooling**: ESLint + Prettier, pnpm or npm (pick one at scaffold time and stick to it)
 
 ## Open Food Facts integration
 
 - **Search** uses search-a-licious (`search.openfoodfacts.org/search`), which sends **no CORS headers**, so the browser calls the same-origin path `/off-search/*`: proxied by Vite (`server.proxy`/`preview.proxy` in vite.config.ts) locally and by a rewrite in vercel.json in production. The legacy `/cgi/search.pl` endpoint returned 503 when checked (2026-10-18).
-- **Product lookup** (`world.openfoodfacts.org/api/v2/product/{code}`) allows CORS (`*`) and can be called directly (for barcodes, Phase 4).
+- **Product lookup** (`world.openfoodfacts.org/api/v2/product/{code}`) allows CORS (`*`) and is called directly for barcode lookups (`lookupOffBarcode`). Unknown codes return HTTP 200 with `status: 0` (404 also handled). OFF itself matches UPC-A to the EAN-13 form.
 - search-a-licious returns `brands` as an array; the v2 product API returns a comma-separated string. The mapper (`src/lib/off/mapper.ts`) handles both.
 - **Rate limits**: search ≈ 10 req/min, product (barcode) lookup ≈ 100 req/min. Therefore:
   - Search the user's own foods (recent, frequent, favorites, custom) **first**, locally/from Supabase, with zero OFF calls.
@@ -169,10 +169,16 @@ supabase/
 
 ### Phase 2 — Depth
 
-- Custom foods, favorites, copy meal/day from a previous date, quick-add calories.
-- Rest timer (auto-start on set complete, vibration/notification).
-- Workout history calendar; edit past workouts; notes per set/exercise.
-- Body weight logging.
+Done 2026-10-19 (verified with Playwright against the fake backend):
+
+- **Barcode scanning** (moved up from Phase 4: it is the user's main way to log food). `/food/scan` → `/food/barcode/:code`. Lookup order: user's own foods with that barcode → shared OFF cache → OFF product API; tries UPC-A/EAN-13/UPC-E variants (`src/domain/barcode.ts`). Not found / no nutrition → custom food form pre-filled with the barcode, so the next scan resolves locally. "Add & scan next" returns to the scanner, which ignores the just-scanned code until it leaves the frame (prevents double logs).
+- **Custom foods** (enter label per serving or per 100 g; stored per 100 g), **quick-add calories** (snapshot `kind: 'quick'`, stored as 100 g of per-100g = typed values, `food_id` null), **copy a meal or whole day** from any date.
+- **Rest timer**: starts on every logged set (length in Settings, 0 = off), persisted end time, bar above the tabs on every screen, vibrate + beep when done (only while the app is open), stops when a workout is finished/discarded.
+
+Remaining Phase 2 items (not started):
+
+- Favorites; workout history calendar; edit past workouts; notes per set/exercise; body weight logging.
+- Import from the user's previous workout app's backup file (user request; format TBD — ask for a sample file).
 
 ### Phase 3 — Progress
 
@@ -182,7 +188,6 @@ supabase/
 
 ### Phase 4 — Speed features
 
-- Barcode scanning (camera) → OFF product lookup.
 - Routines/templates (start workout from routine).
 - Recipes / saved meals.
 - Offline write queue (TanStack Query persisted mutations) for logging without signal in the gym.
@@ -203,3 +208,4 @@ supabase/
 - Mutations are optimistic; show errors as non-blocking toasts with retry.
 - Test at a mobile viewport (Playwright `iPhone 13` device) for every user-facing flow.
 - Secrets: only the Supabase anon key goes in the client (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` in `.env.local`, never committed).
+- E2E tests run against an in-memory fake Supabase (`e2e/fake-supabase.ts`); extend it when the app uses new tables, filters or auth endpoints. The Chrome fake camera plays a generated video of a real EAN-13 barcode (`e2e/barcode-video.ts`, written by `e2e/global-setup.ts`), so scanning is tested with the real decoder.

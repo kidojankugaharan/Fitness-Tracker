@@ -15,8 +15,10 @@ type Props = {
   energyUnit: EnergyUnit
   initial: { grams: number; servingLabel: string | null; meal: string }
   submitLabel: string
+  /** Optional second action, e.g. "Add & scan next"; onSubmit then receives again = true. */
+  secondaryLabel?: string
   busy?: boolean
-  onSubmit: (result: AmountResult) => void
+  onSubmit: (result: AmountResult, again: boolean) => void
   footer?: ReactNode
 }
 
@@ -32,6 +34,7 @@ export function AmountForm({
   energyUnit,
   initial,
   submitLabel,
+  secondaryLabel,
   busy,
   onSubmit,
   footer,
@@ -55,6 +58,18 @@ export function AmountForm({
     setUnit(next)
   }
 
+  const submit = (again: boolean) => {
+    if (grams <= 0) return
+    onSubmit(
+      {
+        grams: Math.round(grams * 100) / 100,
+        servingLabel: serving ? formatServing(qty, serving) : null,
+        meal,
+      },
+      again,
+    )
+  }
+
   const selectClass = 'border-border bg-surface-2 min-h-12 w-full rounded-xl border px-3 text-base'
 
   return (
@@ -62,12 +77,7 @@ export function AmountForm({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        if (grams <= 0) return
-        onSubmit({
-          grams: Math.round(grams * 100) / 100,
-          servingLabel: serving ? formatServing(qty, serving) : null,
-          meal,
-        })
+        submit(false)
       }}
     >
       <div>
@@ -120,6 +130,16 @@ export function AmountForm({
       <Button type="submit" className="w-full text-lg" disabled={busy || grams <= 0}>
         {submitLabel}
       </Button>
+      {secondaryLabel && (
+        <Button
+          variant="secondary"
+          className="w-full"
+          disabled={busy || grams <= 0}
+          onClick={() => submit(true)}
+        >
+          {secondaryLabel}
+        </Button>
+      )}
       {footer}
     </form>
   )

@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import { useState } from 'react'
 import { useSession } from '@/app/useAuth'
+import { formatDuration } from '@/domain/sets'
 import { Button } from '@/components/Button'
 import { Card, Page } from '@/components/Page'
 import { showToast } from '@/lib/toast'
@@ -72,6 +73,8 @@ function PasswordForm() {
     </Card>
   )
 }
+
+const REST_OPTIONS_SEC = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300]
 
 const GOAL_FIELDS = [
   { key: 'goal_kcal', label: 'Calories', unit: 'kcal', max: 20000 },
@@ -166,6 +169,20 @@ export function SettingsPage() {
             options={['kcal', 'kJ'] as const}
             onChange={(energy_unit) => update.mutate({ energy_unit })}
           />
+          <label className="flex items-center justify-between gap-4">
+            <span className="font-medium">Rest timer</span>
+            <select
+              value={profile.rest_timer_default_sec}
+              onChange={(e) => update.mutate({ rest_timer_default_sec: Number(e.target.value) })}
+              className="bg-surface-2 min-h-10 rounded-xl px-3 text-sm font-semibold"
+            >
+              {REST_OPTIONS_SEC.map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec === 0 ? 'Off' : formatDuration(sec)}
+                </option>
+              ))}
+            </select>
+          </label>
         </Card>
       )}
 

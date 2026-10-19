@@ -13,8 +13,67 @@ export type Per100 = {
 
 export type Serving = { label: string; grams: number }
 
-/** Stored in food_entries.food_snapshot so editing or deleting a food never rewrites history. */
-export type FoodSnapshot = { name: string; brand: string | null; per100: Per100 }
+/**
+ * Stored in food_entries.food_snapshot so editing or deleting a food never rewrites history.
+ * `kind: 'quick'` marks a quick-add entry: no food, stored as 100 g of a "food" whose per-100g
+ * values are exactly the calories/macros the user typed.
+ */
+export type FoodSnapshot = { name: string; brand: string | null; per100: Per100; kind?: 'quick' }
+
+export const QUICK_ADD_GRAMS = 100
+
+export function quickAddSnapshot(input: {
+  name: string
+  kcal: number
+  protein: number | null
+  carbs: number | null
+  fat: number | null
+}): FoodSnapshot {
+  return {
+    kind: 'quick',
+    name: input.name.trim() || 'Quick add',
+    brand: null,
+    per100: {
+      kcal: input.kcal,
+      protein: input.protein,
+      carbs: input.carbs,
+      fat: input.fat,
+      fiber: null,
+      sugar: null,
+      sat_fat: null,
+      sodium_mg: null,
+    },
+  }
+}
+
+/** Nutrition label values as printed, for `basisGrams` of food (a serving, or 100 g). */
+export type LabelValues = {
+  kcal: number
+  protein: number | null
+  carbs: number | null
+  fat: number | null
+  fiber: number | null
+  sugar: number | null
+  sat_fat: number | null
+  sodium_mg: number | null
+}
+
+/** Convert label values for `basisGrams` of food to per-100g values (rounded to 2 decimals). */
+export function per100FromLabel(label: LabelValues, basisGrams: number): Per100 {
+  if (!(basisGrams > 0)) throw new Error('basisGrams must be positive')
+  const f = 100 / basisGrams
+  const scale = (v: number | null) => (v == null ? null : Math.round(v * f * 100) / 100)
+  return {
+    kcal: scale(label.kcal)!,
+    protein: scale(label.protein),
+    carbs: scale(label.carbs),
+    fat: scale(label.fat),
+    fiber: scale(label.fiber),
+    sugar: scale(label.sugar),
+    sat_fat: scale(label.sat_fat),
+    sodium_mg: scale(label.sodium_mg),
+  }
+}
 
 export type Macros = { kcal: number; protein: number; carbs: number; fat: number }
 
@@ -55,6 +114,7 @@ export function parseSnapshot(value: unknown): FoodSnapshot {
   const p = (v.per100 ?? {}) as Partial<Per100>
   const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : null)
   return {
+    ...(v.kind === 'quick' ? { kind: 'quick' as const } : {}),
     name: typeof v.name === 'string' ? v.name : 'Unknown food',
     brand: typeof v.brand === 'string' ? v.brand : null,
     per100: {

@@ -154,6 +154,12 @@ function matches(row: Row, params: URLSearchParams): boolean {
     const value = row[key]
     if (raw.startsWith('eq.')) {
       if (String(value) !== raw.slice(3)) return false
+    } else if (raw.startsWith('in.(')) {
+      const list = raw
+        .slice(4, -1)
+        .split(',')
+        .map((v) => v.replace(/^"|"$/g, ''))
+      if (!list.includes(String(value))) return false
     } else if (raw === 'is.null') {
       if (value != null) return false
     } else if (raw === 'not.is.null') {
@@ -206,6 +212,16 @@ function respond(route: Route, rows: Row[] | Row | null, wantsObject: boolean, s
   return route.fulfill({ status, json: body })
 }
 
+export const OFF_PRODUCTS: Record<string, object> = {
+  '3017624010701': {
+    product_name: 'Nutella',
+    brands: 'Ferrero',
+    serving_size: '15 g',
+    serving_quantity: 15,
+    nutriments: { 'energy-kcal_100g': 539, proteins_100g: 6.3, carbohydrates_100g: 57.5, fat_100g: 30.9 },
+  },
+}
+
 const OFF_HITS = [
   {
     code: '5000108000000',
@@ -225,6 +241,18 @@ export async function installFakeBackend(
   await installFakeAuth(page, authLog)
 
   await page.route('**/off-search/**', (route) => route.fulfill({ json: { hits: OFF_HITS } }))
+
+  // OFF product (barcode) API: only the products in OFF_PRODUCTS exist.
+  await page.route('https://world.openfoodfacts.org/api/v2/product/**', (route) => {
+    const code = new URL(route.request().url()).pathname.split('/').pop()!
+    const product = OFF_PRODUCTS[code]
+    return route.fulfill({
+      headers: { 'access-control-allow-origin': '*' },
+      json: product
+        ? { code, status: 1, product: { code, ...product } }
+        : { code, status: 0, status_verbose: 'product not found' },
+    })
+  })
 
   await page.route('**/rest/v1/**', async (route) => {
     const req = route.request()
@@ -298,6 +326,7 @@ export async function installFakeBackend(
         user_id: USER_ID,
         ...(path === 'workouts' ? { started_at: now, ended_at: null, notes: null, routine_id: null } : {}),
         ...(path === 'exercises' ? { equipment: null, notes: null, archived: false } : {}),
+        ...(path === 'foods' ? { updated_at: now, servings: [] } : {}),
         ...r,
       }))
       table.push(...inserted)

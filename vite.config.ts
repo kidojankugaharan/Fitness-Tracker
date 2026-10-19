@@ -31,6 +31,16 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // Only the app shell is precached. Supabase and Open Food Facts responses are
         // deliberately not cached here: TanStack Query owns server-state caching.
+        // The barcode reader's .wasm (~1 MB, only needed without native BarcodeDetector) is not
+        // precached; it is cached on first use so scanning then works offline.
+        globIgnores: ['**/*.wasm'],
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/.*\.wasm$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'barcode-wasm', expiration: { maxEntries: 2 } },
+          },
+        ],
       },
     }),
   ],

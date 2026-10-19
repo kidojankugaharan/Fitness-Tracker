@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { AddFoodPage } from '@/features/food/AddFoodPage'
+import { BarcodeResultPage } from '@/features/food/BarcodeResultPage'
+import { ScanPage } from '@/features/food/ScanPage'
 import { EditEntryPage } from '@/features/food/EditEntryPage'
 import { FoodPage } from '@/features/food/FoodPage'
 import { ProgressPage } from '@/features/progress/ProgressPage'
@@ -23,6 +25,8 @@ export const router = createBrowserRouter([
           { path: 'food', element: <FoodPage /> },
           { path: 'food/add', element: <AddFoodPage /> },
           { path: 'food/entry/:entryId', element: <EditEntryPage /> },
+          { path: 'food/scan', element: <ScanPage /> },
+          { path: 'food/barcode/:code', element: <BarcodeResultPage /> },
           { path: 'workout', element: <WorkoutPage /> },
           { path: 'workout/exercise/:exerciseId', element: <ExerciseHistoryPage /> },
           { path: 'progress', element: <ProgressPage /> },

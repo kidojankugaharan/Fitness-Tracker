@@ -1,8 +1,10 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { SubPage } from '@/components/Page'
 import { today } from '@/domain/dates'
+import { suggestMeal } from '@/domain/meals'
+import { QUICK_ADD_GRAMS } from '@/domain/macros'
 import { formatEnergy, type EnergyUnit } from '@/domain/units'
 import { OFF_MIN_QUERY_LENGTH } from '@/lib/off/client'
 import {
@@ -15,6 +17,9 @@ import {
 import { useProfile } from '@/lib/supabase/profile'
 import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import { AmountForm } from './AmountForm'
+import { CustomFoodForm } from './CustomFoodForm'
+import { diaryPath, scanPath } from './paths'
+import { QuickAddForm } from './QuickAddForm'
 
 // OFF search is limited to ~10 requests/minute: only search after typing pauses.
 const OFF_DEBOUNCE_MS = 600
@@ -24,13 +29,14 @@ export function AddFoodPage() {
   const navigate = useNavigate()
   const { data: profile } = useProfile()
   const date = params.get('date') ?? today()
-  const meal = params.get('meal') ?? profile?.meal_names[0] ?? 'Snacks'
+  const meal = params.get('meal') ?? suggestMeal(profile?.meal_names ?? [])
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<FoodChoice | null>(null)
+  const [mode, setMode] = useState<'search' | 'quick' | 'create'>('search')
   const add = useAddFoodEntry()
   const energyUnit = profile?.energy_unit ?? 'kcal'
 
-  const back = () => navigate(date === today() ? '/food' : `/food?date=${date}`)
+  const back = () => navigate(diaryPath(date))
 
   if (selected) {
     const defaultServing = selected.servings[0]
@@ -61,8 +67,57 @@ export function AddFoodPage() {
     )
   }
 
+  if (mode === 'quick') {
+    return (
+      <SubPage title="Quick add" onBack={() => setMode('search')}>
+        <QuickAddForm
+          meals={profile?.meal_names ?? [meal]}
+          initial={{ meal }}
+          submitLabel="Add to diary"
+          onSubmit={({ snapshot, meal: chosenMeal }) => {
+            add.mutate({
+              id: crypto.randomUUID(),
+              input: { quick: snapshot, date, meal: chosenMeal, grams: QUICK_ADD_GRAMS, servingLabel: null },
+            })
+            back()
+          }}
+        />
+      </SubPage>
+    )
+  }
+
+  if (mode === 'create') {
+    return (
+      <SubPage title="Create food" onBack={() => setMode('search')}>
+        <CustomFoodForm
+          barcode={null}
+          initialName={query.trim() || null}
+          onCreated={(choice) => {
+            setMode('search')
+            setSelected(choice)
+          }}
+          onCancel={() => setMode('search')}
+        />
+      </SubPage>
+    )
+  }
+
   return (
     <SubPage title={`Add to ${meal}`} onBack={back}>
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <Link
+          to={scanPath(date, meal)}
+          className="bg-accent text-accent-contrast flex min-h-11 items-center justify-center rounded-xl font-semibold active:opacity-80"
+        >
+          Scan
+        </Link>
+        <Button variant="secondary" onClick={() => setMode('quick')}>
+          Quick add
+        </Button>
+        <Button variant="secondary" onClick={() => setMode('create')}>
+          Create food
+        </Button>
+      </div>
       <input
         autoFocus
         type="search"

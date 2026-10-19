@@ -2,6 +2,7 @@ import { clsx } from 'clsx'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useSession } from '@/app/useAuth'
+import { startRest } from '@/lib/restTimer'
 import { Button } from '@/components/Button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { Card } from '@/components/Page'
@@ -27,10 +28,12 @@ type Props = {
   exerciseOrder: number
   sets: WorkoutSet[]
   units: WeightUnit
+  /** Rest timer length started after each logged set; 0 disables it. */
+  restSec: number
   onRemove?: () => void
 }
 
-export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, onRemove }: Props) {
+export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, restSec, onRemove }: Props) {
   const userId = useSession().user.id
   const history = useExerciseHistory(exercise.id)
   const addSet = useAddSet()
@@ -68,6 +71,7 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, o
     setDraft({})
     setWarmup(false)
     navigator.vibrate?.(10)
+    startRest(restSec, exercise.name)
   }
 
   let workingIndex = 0

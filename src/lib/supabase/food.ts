@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/app/useAuth'
+import { barcodeVariants } from '@/domain/barcode'
 import type { LocalDate } from '@/domain/dates'
 import { parseServings, type FoodSnapshot, type Per100, type Serving } from '@/domain/macros'
-import { OFF_MIN_QUERY_LENGTH, searchOff } from '@/lib/off/client'
+import { lookupOffBarcode, OFF_MIN_QUERY_LENGTH, searchOff } from '@/lib/off/client'
 import type { OffFood } from '@/lib/off/mapper'
 import { supabase } from './client'
 import type { Tables } from './database.types'
@@ -151,6 +152,123 @@ function snapshotOf(choice: FoodChoice): FoodSnapshot {
   return { name: choice.name, brand: choice.brand, per100: choice.per100 }
 }
 
+function entrySnapshot(input: NewEntryInput): FoodSnapshot {
+  return 'choice' in input ? snapshotOf(input.choice) : input.quick
+}
+
+export type BarcodeLookup =
+  | { status: 'found'; choice: FoodChoice }
+  | { status: 'incomplete'; name: string | null; brand: string | null }
+  | { status: 'not_found' }
+
+/**
+ * Resolve a scanned barcode: the user's own foods first (custom foods they created for it), then the
+ * shared Open Food Facts cache, and only then the OFF API. Repeat scans never leave our database.
+ */
+export function useBarcodeLookup(code: string) {
+  return useQuery({
+    queryKey: ['food', 'barcode', code],
+    staleTime: 5 * 60_000,
+    retry: 1,
+    queryFn: async ({ signal }): Promise<BarcodeLookup> => {
+      const variants = barcodeVariants(code)
+      const { data, error } = await supabase
+        .from('foods')
+        .select('*')
+        .in('off_code', variants)
+        .order('updated_at', { ascending: false })
+      if (error) throw error
+      const local = data.find((f) => f.user_id !== null) ?? data[0]
+      if (local) return { status: 'found', choice: choiceFromRow(local) }
+
+      const off = await lookupOffBarcode(code, signal)
+      if (off.status === 'found') return { status: 'found', choice: choiceFromOff(off.food) }
+      return off
+    },
+  })
+}
+
+export type CustomFoodInput = {
+  name: string
+  brand: string | null
+  barcode: string | null
+  per100: Per100
+  servings: Serving[]
+}
+
+/** Create a food owned by the user (e.g. for a barcode Open Food Facts doesn't know). */
+export function useCreateCustomFood() {
+  const userId = useSession().user.id
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CustomFoodInput) => {
+      const { data, error } = await supabase
+        .from('foods')
+        .insert({
+          user_id: userId,
+          source: 'custom',
+          off_code: input.barcode,
+          name: input.name.trim(),
+          brand: input.brand?.trim() || null,
+          kcal_100g: input.per100.kcal,
+          protein_100g: input.per100.protein,
+          carbs_100g: input.per100.carbs,
+          fat_100g: input.per100.fat,
+          fiber_100g: input.per100.fiber,
+          sugar_100g: input.per100.sugar,
+          sat_fat_100g: input.per100.sat_fat,
+          sodium_mg_100g: input.per100.sodium_mg,
+          servings: input.servings,
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return choiceFromRow(data)
+    },
+    onSuccess: (_choice, input) => {
+      qc.invalidateQueries({ queryKey: ['food', 'local-search'] })
+      if (input.barcode) qc.removeQueries({ queryKey: ['food', 'barcode', input.barcode] })
+    },
+  })
+}
+
+/** Copy one meal (or a whole day) from another date onto `toDate`. Returns how many were copied. */
+export function useCopyEntries() {
+  const userId = useSession().user.id
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      fromDate,
+      toDate,
+      meal,
+    }: {
+      fromDate: LocalDate
+      toDate: LocalDate
+      meal?: string
+    }) => {
+      let query = supabase.from('food_entries').select('*').eq('date', fromDate).order('created_at')
+      if (meal) query = query.eq('meal', meal)
+      const { data: source, error } = await query
+      if (error) throw error
+      if (source.length === 0) return 0
+      const { error: insertError } = await supabase.from('food_entries').insert(
+        source.map((e) => ({
+          user_id: userId,
+          date: toDate,
+          meal: e.meal,
+          food_id: e.food_id,
+          food_snapshot: e.food_snapshot,
+          grams: e.grams,
+          serving_label: e.serving_label,
+        })),
+      )
+      if (insertError) throw insertError
+      return source.length
+    },
+    onSuccess: (_n, { toDate }) => qc.invalidateQueries({ queryKey: keys.entries(userId, toDate) }),
+  })
+}
+
 async function ensureFoodId(choice: FoodChoice): Promise<string> {
   if (choice.foodId) return choice.foodId
   if (!choice.off) throw new Error('Food has no id')
@@ -173,33 +291,33 @@ async function ensureFoodId(choice: FoodChoice): Promise<string> {
   return data
 }
 
+/** A food entry to log: a chosen food, or a quick-add snapshot with no food behind it. */
 export type NewEntryInput = {
-  choice: FoodChoice
   date: LocalDate
   meal: string
   grams: number
   servingLabel: string | null
-}
+} & ({ choice: FoodChoice } | { quick: FoodSnapshot })
 
 export function useAddFoodEntry() {
   const userId = useSession().user.id
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ input, id }: { input: NewEntryInput; id: string }) => {
-      const foodId = await ensureFoodId(input.choice)
+      const foodId = 'choice' in input ? await ensureFoodId(input.choice) : null
       const { error } = await supabase.from('food_entries').insert({
         id,
         user_id: userId,
         date: input.date,
         meal: input.meal,
         food_id: foodId,
-        food_snapshot: snapshotOf(input.choice),
+        food_snapshot: entrySnapshot(input),
         grams: input.grams,
         serving_label: input.servingLabel,
       })
       if (error) throw error
       // Recents are a convenience: never fail the log because of them.
-      await supabase.rpc('record_food_use', { p_food_id: foodId })
+      if (foodId) await supabase.rpc('record_food_use', { p_food_id: foodId })
     },
     onMutate: async ({ input, id }) => {
       const key = keys.entries(userId, input.date)
@@ -209,8 +327,8 @@ export function useAddFoodEntry() {
         user_id: userId,
         date: input.date,
         meal: input.meal,
-        food_id: input.choice.foodId,
-        food_snapshot: snapshotOf(input.choice),
+        food_id: 'choice' in input ? input.choice.foodId : null,
+        food_snapshot: entrySnapshot(input),
         grams: input.grams,
         serving_label: input.servingLabel,
         created_at: new Date().toISOString(),
@@ -237,7 +355,7 @@ export function useUpdateFoodEntry() {
       patch,
     }: {
       entry: FoodEntry
-      patch: Pick<FoodEntry, 'grams' | 'meal' | 'serving_label'>
+      patch: Partial<Pick<FoodEntry, 'grams' | 'meal' | 'serving_label' | 'food_snapshot'>>
     }) => {
       const { error } = await supabase.from('food_entries').update(patch).eq('id', entry.id)
       if (error) throw error

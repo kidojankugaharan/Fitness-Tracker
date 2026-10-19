@@ -4,6 +4,7 @@ import { MacroSummary } from '@/components/MacroSummary'
 import { Card, Page } from '@/components/Page'
 import { formatDayLabel, today } from '@/domain/dates'
 import { macrosFor, parseSnapshot, sumMacros } from '@/domain/macros'
+import { addFoodPath, scanPath } from '@/features/food/paths'
 import { WorkoutSummaryCard } from '@/features/workouts/WorkoutPage'
 import { useFoodEntries } from '@/lib/supabase/food'
 import { useProfile } from '@/lib/supabase/profile'
@@ -34,9 +35,15 @@ export function TodayPage() {
         <Card>{profile ? <MacroSummary eaten={eaten} profile={profile} /> : <div className="h-32" />}</Card>
       </Link>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <Link
-          to="/food/add"
+          to={scanPath(date)}
+          className="bg-accent text-accent-contrast rounded-2xl p-4 text-center font-semibold active:opacity-80"
+        >
+          Scan food
+        </Link>
+        <Link
+          to={addFoodPath(date)}
           className="bg-surface-2 rounded-2xl p-4 text-center font-semibold active:opacity-80"
         >
           + Log food
