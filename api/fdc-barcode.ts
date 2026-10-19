@@ -36,7 +36,12 @@ export async function lookupFdcBarcode(code: string, apiKey: string): Promise<Fd
     dataType: 'Branded',
     pageSize: '10',
   })
-  const res = await fetch(`${FDC_SEARCH}?${params}`)
+  let res = await fetch(`${FDC_SEARCH}?${params}`)
+  // FDC has brief hiccups (5xx, occasional 429): one quick retry before reporting a failure.
+  if (res.status >= 500 || res.status === 429) {
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    res = await fetch(`${FDC_SEARCH}?${params}`)
+  }
   if (!res.ok) throw new Error(`FoodData Central responded ${res.status}`)
   const body = (await res.json()) as { foods?: (FdcFood & Record<string, unknown>)[] }
   const match = (body.foods ?? []).find((f) => f.gtinUpc && sameGtin(f.gtinUpc, code))

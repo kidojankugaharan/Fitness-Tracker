@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Button } from '@/components/Button'
 import { Segmented } from '@/components/Segmented'
-import { per100FromLabel, type Serving } from '@/domain/macros'
+import { per100FromLabel, type Per100, type Serving } from '@/domain/macros'
 import { isInvalid, parseNonNegative as parse } from '@/domain/numbers'
-import { energyLabel, energyToKcal, formatNumber, type EnergyUnit } from '@/domain/units'
+import { energyLabel, energyToKcal, formatNumber, kcalToDisplay, type EnergyUnit } from '@/domain/units'
 import { useCreateCustomFood, type FoodChoice } from '@/lib/supabase/food'
 
 type Basis = 'serving' | '100g'
@@ -12,6 +12,9 @@ type Props = {
   barcode: string | null
   initialName?: string | null
   initialBrand?: string | null
+  /** Correcting a database product: start from its values (per 100 g) and first serving. */
+  initialPer100?: Per100 | null
+  initialServing?: Serving | null
   /** Calories are typed in the user's display unit and stored as kcal. */
   energyUnit: EnergyUnit
   onCreated: (choice: FoodChoice) => void
@@ -42,6 +45,8 @@ export function CustomFoodForm({
   barcode,
   initialName,
   initialBrand,
+  initialPer100,
+  initialServing,
   energyUnit,
   onCreated,
   onCancel,
@@ -51,18 +56,22 @@ export function CustomFoodForm({
   const [createId] = useState(() => crypto.randomUUID())
   const [name, setName] = useState(initialName ?? '')
   const [brand, setBrand] = useState(initialBrand ?? '')
-  const [basis, setBasis] = useState<Basis>('serving')
-  const [servingGrams, setServingGrams] = useState('')
-  const [servingLabel, setServingLabel] = useState('')
-  const [values, setValues] = useState<Record<NutrientKey, string>>({
-    kcal: '',
-    protein: '',
-    carbs: '',
-    fat: '',
-    fiber: '',
-    sugar: '',
-    sat_fat: '',
-    sodium_mg: '',
+  const [basis, setBasis] = useState<Basis>(initialPer100 ? '100g' : 'serving')
+  const [servingGrams, setServingGrams] = useState(initialServing ? String(initialServing.grams) : '')
+  const [servingLabel, setServingLabel] = useState(initialServing?.label ?? '')
+  const [values, setValues] = useState<Record<NutrientKey, string>>(() => {
+    const p = initialPer100
+    const text = (v: number | null | undefined) => (v == null ? '' : String(Math.round(v * 100) / 100))
+    return {
+      kcal: p ? text(kcalToDisplay(p.kcal, energyUnit)) : '',
+      protein: text(p?.protein),
+      carbs: text(p?.carbs),
+      fat: text(p?.fat),
+      fiber: text(p?.fiber),
+      sugar: text(p?.sugar),
+      sat_fat: text(p?.sat_fat),
+      sodium_mg: text(p?.sodium_mg),
+    }
   })
 
   const parsed = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, parse(v)])) as Record<
@@ -100,9 +109,13 @@ export function CustomFoodForm({
       }}
     >
       <div>
-        <h2 className="text-xl font-bold">New food</h2>
+        <h2 className="text-xl font-bold">{initialPer100 ? 'Correct this food' : 'New food'}</h2>
         {barcode && (
-          <p className="text-muted text-sm">Barcode {barcode} — saved so the next scan finds it.</p>
+          <p className="text-muted text-sm">
+            {initialPer100
+              ? `Your version is saved for barcode ${barcode} and used on every future scan.`
+              : `Barcode ${barcode} — saved so the next scan finds it.`}
+          </p>
         )}
       </div>
 

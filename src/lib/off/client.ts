@@ -58,7 +58,7 @@ export async function lookupOffBarcode(code: string, signal?: AbortSignal, keyAs
   // Key the food by the scanned code so the next scan of it hits our cache.
   const food = mapOffProduct({ ...body.product, code: keyAs })
   if (food) return { status: 'found', food }
-  const name = (body.product.product_name || body.product.product_name_en || '').trim() || null
+  const name = (body.product.product_name_en || body.product.product_name || '').trim() || null
   const brands = body.product.brands
   const brand = (Array.isArray(brands) ? brands[0] : brands?.split(',')[0])?.trim() || null
   return { status: 'incomplete', name, brand }

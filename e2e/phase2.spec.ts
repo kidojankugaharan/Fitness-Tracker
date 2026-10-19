@@ -191,3 +191,29 @@ test('a barcode can be typed in when the camera cannot read it', async ({ page, 
   await page.getByRole('button', { name: 'Look up' }).click()
   await expect(page.getByRole('heading', { name: 'Nutella' })).toBeVisible()
 })
+
+test('a database product with a bad name can be corrected once, and the fix sticks', async ({ page }) => {
+  const db = await installFakeBackend(page)
+  await page.goto('/food/barcode/3017624010701?meal=Lunch')
+  await expect(page.getByRole('heading', { name: 'Nutella' })).toBeVisible()
+  await page.getByRole('button', { name: 'Edit it' }).click()
+  await expect(page.getByRole('heading', { name: 'Correct this food' })).toBeVisible()
+  await expect(page.getByLabel('Calories (kcal)')).toHaveValue('539') // pre-filled per 100 g
+  await page.getByLabel('Name', { exact: true }).fill('Nutella hazelnut spread')
+  await page.getByRole('button', { name: 'Save food' }).click()
+  await expect(page.getByRole('heading', { name: 'Nutella hazelnut spread' })).toBeVisible()
+  expect(db.foods![0]).toMatchObject({ user_id: USER_ID, off_code: '3017624010701', kcal_100g: 539 })
+
+  await page.waitForTimeout(800) // let the persister flush
+  await page.goto('/food/barcode/3017624010701?meal=Lunch') // next scan: your version wins
+  await expect(page.getByRole('heading', { name: 'Nutella hazelnut spread' })).toBeVisible()
+})
+
+test('a USDA outage is reported as a failed check, not as "not found"', async ({ page }) => {
+  await installFakeBackend(page)
+  await page.route('**/api/fdc-barcode**', (route) => route.fulfill({ status: 502, json: { error: 'down' } }))
+  await page.goto('/food/barcode/036000291452?meal=Lunch')
+  await expect(page.getByText(/Couldn't check the USDA database/)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Not in the food databases yet')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Enter it manually' })).toBeVisible()
+})

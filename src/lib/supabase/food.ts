@@ -209,9 +209,20 @@ export function useBarcodeLookup(code: string) {
       }
       // Second source: USDA FoodData Central (US branded foods, often the same UPC in Canada).
       // Cached into our database like an OFF product once logged, so it's never fetched again.
-      const fdc = await lookupFdcBarcode(canonical, signal)
+      let fdc: OffFood | null = null
+      let fdcFailed = false
+      try {
+        fdc = await lookupFdcBarcode(canonical, signal)
+      } catch (error) {
+        if (signal.aborted) throw error
+        fdcFailed = true
+      }
       if (fdc) return { status: 'found', choice: choiceFromOff(fdc) }
       if (off instanceof Error) throw off
+      // Never say "not found" for a product that couldn't be checked: it may well exist.
+      if (fdcFailed && off.status === 'not_found') {
+        throw new Error("Couldn't check the USDA database (weak signal or busy). Try again.")
+      }
       return off
     },
   })
@@ -253,9 +264,13 @@ export function useCreateCustomFood() {
       if (readError) throw readError
       return choiceFromRow(data)
     },
-    onSuccess: (_choice, { input }) => {
+    onSuccess: (choice, { input }) => {
       qc.invalidateQueries({ queryKey: ['food', userId, 'local-search'] })
-      if (input.barcode) qc.removeQueries({ queryKey: keys.barcode(userId, canonicalBarcode(input.barcode)) })
+      // The next scan of this barcode shows the user's food (it also wins over database products).
+      if (input.barcode) {
+        const lookup: BarcodeLookup = { status: 'found', choice }
+        qc.setQueryData(keys.barcode(userId, canonicalBarcode(input.barcode)), () => lookup)
+      }
     },
   })
 }

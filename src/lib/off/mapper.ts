@@ -88,7 +88,8 @@ function firstBrand(brands: OffProduct['brands']): string | null {
 /** Map an OFF product to an OffFood, or null if it lacks a name, barcode or usable energy value. */
 export function mapOffProduct(p: OffProduct): OffFood | null {
   const code = p.code?.trim()
-  const name = (p.product_name || p.product_name_en || '').trim()
+  // English first: Canadian products are bilingual and the main-language name is often French.
+  const name = (p.product_name_en || p.product_name || '').trim()
   if (!code || !name) return null
 
   const n = p.nutriments

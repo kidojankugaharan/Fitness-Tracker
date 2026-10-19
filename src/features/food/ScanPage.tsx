@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
 import { isValidBarcode } from '@/domain/barcode'
 import { dateFromParam } from '@/domain/dates'
+import { createScanConfirmer } from '@/domain/scanConfirm'
 import { getDetector } from '@/lib/barcode/detector'
 import { barcodePath, diaryPath } from './paths'
 
@@ -37,6 +38,8 @@ export function ScanPage() {
     let ignoreAbsentSince: number | null = null
     let stream: MediaStream | null = null
     let timer: ReturnType<typeof setTimeout> | undefined
+    // Two frames must agree before a code is accepted (a single misread frame is ignored).
+    const confirm = createScanConfirmer()
 
     async function start() {
       if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
@@ -82,7 +85,10 @@ export function ScanPage() {
                 else if (ignoreAbsentSince === null) ignoreAbsentSince = Date.now()
                 else if (Date.now() - ignoreAbsentSince >= IGNORE_CLEAR_MS) ignore = null
               }
-              const hit = valid.find((c) => c !== ignore)
+              const hit = confirm(
+                valid.filter((c) => c !== ignore),
+                Date.now(),
+              )
               if (hit && !stopped) {
                 stopped = true
                 found(hit)

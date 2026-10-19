@@ -72,9 +72,9 @@ export function BarcodeResultPage() {
           }}
           footer={
             <p className="text-muted text-center text-xs">
-              Barcode {code} · Wrong product?{' '}
+              Barcode {code} · Wrong name or details?{' '}
               <button type="button" className="text-accent font-semibold" onClick={() => setCreating(true)}>
-                Enter it yourself
+                Edit it
               </button>
             </p>
           }
@@ -107,6 +107,8 @@ export function BarcodeResultPage() {
         energyUnit={profile?.energy_unit ?? 'kcal'}
         initialName={prefill?.name ?? (result.status === 'found' ? result.choice.name : null)}
         initialBrand={prefill?.brand ?? (result.status === 'found' ? result.choice.brand : null)}
+        initialPer100={result.status === 'found' ? result.choice.per100 : null}
+        initialServing={result.status === 'found' ? (result.choice.servings[0] ?? null) : null}
         onCreated={(food) => {
           setCreated(food)
           setCreating(false)
