@@ -199,25 +199,27 @@ A full Codex review (bugs, security, data integrity, UX, features, code quality)
 - The shared OFF cache accepts inserts from any signed-in account (by design), so "Allow new users to sign up" is **disabled** in Supabase Auth (2026-10-19). Re-enabling sign-ups needs a moderation story for the cache first.
 - A failed write keeps its payload for the toast's **Retry**, but doesn't restore the typed draft into the form.
 
-### Phase 3 — Progress
+### Upgrade roadmap (agreed 2026-10-19)
 
-- Per-exercise charts: est. 1RM, top set weight, session volume over time.
-- PR list and rep-max table per exercise.
-- Calorie & macro trends (7/30/90 days), body weight trend with moving average.
+Each phase: build → Codex review → fix → Playwright on Chrome + WebKit → deploy.
 
-### Phase 4 — Speed features
+**Phase U0 — UI revamp** (done 2026-10-19): bold & sporty, always dark, blue accent — see Conventions → Design system.
 
-- Routines/templates (start workout from routine).
-- Recipes / saved meals.
-- ~~Offline write queue~~ — done early (see Conventions → writes).
+**Phase U1 — Faster food logging**: favorites; saved meals; "repeat a recent meal" chips; My Foods manager (edit/rename/delete custom and corrected foods); multi-scan basket; automatic fix for French-only names; better search (serving in results, rank own/Canadian, Frequent tab); water tracker.
 
-### Phase 5 — Data portability & polish
+**Phase U2 — Workouts (FitNotes parity)**: edit sets during a workout and edit/delete past workouts; history calendar; notes per set/exercise; routines/templates; warm-up flag + RPE; supersets; plate and warm-up calculators; exercise manager (rename/archive/merge).
 
-- Export all data as JSON/CSV; import from FitNotes CSV export and MyFitnessPal export.
-- Supersets, plate calculator, warm-up calculator.
-- Accessibility and performance pass (Lighthouse ≥ 90 on mobile).
+**Phase U3 — Progress & insights**: per-exercise charts (e1RM, top set, volume); PR list + rep-max table; body weight with trend; calorie/macro trends 7/30/90 d; weekly summary on Today; adaptive calorie target from weight trend + intake; streaks.
+
+**Phase U4 — Your data**: JSON/CSV export; import from the user's old workout app (needs a sample file); MyFitnessPal import; restore and account deletion; Google sign-in.
+
+**Phase U5 — Polish & reliability**: onboarding/goal wizard; reminders; error reporting; accessibility + performance pass (Lighthouse ≥ 90 mobile); theme toggle, animations, haptics; shared food cache protection before reopening sign-ups.
+
+Still open from earlier phases: a failed write's Retry doesn't restore the typed draft into the form.
 
 ## Conventions
+
+- **Design system** (`src/index.css`): always dark (no light theme); tokens on `:root` exposed as Tailwind colours (`bg`, `surface`, `surface-2/3`, `border(-strong)`, `text`, `muted`, `accent` #2468df for fills (white text 5.1:1), `accent-bright` for blue text, `danger`, `success` (PR badges), `warning` (warm-up, sync banner), macro colours `protein`/`carbs`/`fat`). Type: Barlow Condensed via `display` (headlines/buttons, uppercase), `eyebrow` (small uppercase labels), `numeric` (numbers); Inter for body. Fonts are self-hosted Latin woff2, precached. Keep touch targets ≥ 44px and text contrast ≥ 4.5:1; visual changes must not change accessible names (tests rely on them).
 
 - Keep business logic in `src/domain/` as pure, tested functions; components stay thin.
 - All Supabase access goes through typed query hooks in `src/lib/supabase/`; no raw queries in components.

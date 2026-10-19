@@ -26,7 +26,7 @@ export function SyncStatus() {
   return (
     <div
       role="status"
-      className="pt-safe bg-text text-bg sticky top-0 z-30 text-center text-xs font-semibold"
+      className="pt-safe bg-warning sticky top-0 z-30 text-center text-xs font-semibold text-black"
     >
       <p className="px-4 py-1.5">{message}</p>
     </div>

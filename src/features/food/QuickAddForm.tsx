@@ -14,7 +14,7 @@ type Props = {
 }
 
 const inputClass =
-  'border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base'
+  'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
 const toText = (v: number | null | undefined) => (v == null ? '' : formatNumber(v, 1))
 
@@ -38,7 +38,7 @@ export function QuickAddForm({ meals, energyUnit, initial, submitLabel, onSubmit
 
   const field = (label: string, value: string, set: (v: string) => void, required = false) => (
     <label className="block">
-      <span className="text-muted mb-1 block text-xs font-medium">{label}</span>
+      <span className="eyebrow mb-1.5 block">{label}</span>
       <input
         inputMode="decimal"
         required={required}
@@ -63,9 +63,9 @@ export function QuickAddForm({ meals, energyUnit, initial, submitLabel, onSubmit
         })
       }}
     >
-      <h2 className="text-xl font-bold">Quick add</h2>
+      <h2 className="display text-[1.75rem]">Quick add</h2>
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Description (optional)</span>
+        <span className="eyebrow mb-1.5 block">Description (optional)</span>
         <input
           maxLength={200}
           placeholder="Quick add"
@@ -81,7 +81,7 @@ export function QuickAddForm({ meals, energyUnit, initial, submitLabel, onSubmit
         {field('Fat (g)', fat, setFat)}
       </div>
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Meal</span>
+        <span className="eyebrow mb-1.5 block">Meal</span>
         <select value={meal} onChange={(e) => setMeal(e.target.value)} className={inputClass}>
           {[...new Set([...meals, initial.meal])].map((m) => (
             <option key={m}>{m}</option>

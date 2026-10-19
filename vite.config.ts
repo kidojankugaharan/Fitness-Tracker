@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
         name: 'Fitness Tracker',
         short_name: 'Fitness',
         description: 'Fast food, macro and workout logging.',
-        theme_color: '#0b0f14',
-        background_color: '#0b0f14',
+        theme_color: '#05070b',
+        background_color: '#05070b',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -36,6 +36,7 @@ export default defineConfig(({ mode }) => ({
         // deliberately not cached here: TanStack Query owns server-state caching.
         // The barcode reader's .wasm (~1 MB, only needed without native BarcodeDetector) is not
         // precached; it is cached on first use so scanning then works offline.
+        globPatterns: ['**/*.{js,css,html,woff2}'],
         globIgnores: ['**/*.wasm'],
         runtimeCaching: [
           {

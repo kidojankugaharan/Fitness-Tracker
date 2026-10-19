@@ -22,7 +22,10 @@ export function ExerciseHistoryPage() {
   const prs = useMemo(() => annotatePRs(history.data ?? []), [history.data])
 
   const back = (
-    <Link to="/workout" className="text-accent text-sm font-semibold">
+    <Link
+      to="/workout"
+      className="font-display text-accent-bright text-base font-bold tracking-wide uppercase"
+    >
       Done
     </Link>
   )
@@ -54,7 +57,10 @@ export function ExerciseHistoryPage() {
     <Page
       title={exercise.name}
       action={
-        <Link to="/workout" className="text-accent text-sm font-semibold">
+        <Link
+          to="/workout"
+          className="font-display text-accent-bright text-base font-bold tracking-wide uppercase"
+        >
           Done
         </Link>
       }
@@ -65,8 +71,8 @@ export function ExerciseHistoryPage() {
         <>
           {showWeights && (
             <Card>
-              <h2 className="font-semibold">Records</h2>
-              <dl className="mt-2 grid grid-cols-3 gap-2 text-sm">
+              <h2 className="display text-xl">Records</h2>
+              <dl className="mt-3 grid grid-cols-3 gap-3">
                 <Stat
                   label="Heaviest"
                   value={records.heaviest ? formatWeight(records.heaviest.weight_kg ?? 0, units) : '—'}
@@ -81,17 +87,17 @@ export function ExerciseHistoryPage() {
                 />
               </dl>
               {records.repMaxes.length > 0 && (
-                <table className="mt-4 w-full text-sm">
-                  <thead className="text-muted text-left">
+                <table className="border-border mt-4 w-full border-t text-left">
+                  <thead>
                     <tr>
-                      <th className="font-medium">Reps</th>
-                      <th className="font-medium">Best weight</th>
+                      <th className="eyebrow pt-3 pb-1">Reps</th>
+                      <th className="eyebrow pt-3 pb-1">Best weight</th>
                     </tr>
                   </thead>
-                  <tbody className="tabular-nums">
+                  <tbody className="numeric text-lg">
                     {records.repMaxes.map(({ reps, set }) => (
                       <tr key={reps}>
-                        <td className="py-0.5">{reps}</td>
+                        <td className="py-1">{reps}</td>
                         <td>{formatWeight(set.weight_kg ?? 0, units)}</td>
                       </tr>
                     ))}
@@ -103,14 +109,14 @@ export function ExerciseHistoryPage() {
 
           {sessions.map(({ workoutId, date, sets }) => (
             <Card key={workoutId}>
-              <p className="font-semibold">{date ? formatDayLabel(date) : 'Workout'}</p>
-              <ol className="mt-1 space-y-1 text-sm tabular-nums">
+              <p className="display text-xl">{date ? formatDayLabel(date) : 'Workout'}</p>
+              <ol className="numeric mt-2 space-y-1.5 text-lg">
                 {sets.map((s) => (
                   <li key={s.id} className="flex items-center gap-2">
-                    <span className="text-muted w-5">{s.is_warmup ? 'W' : ''}</span>
+                    <span className="text-warning w-5 text-sm">{s.is_warmup ? 'W' : ''}</span>
                     <span>{formatSet(s, exercise.type, units)}</span>
                     {prs.has(s.id) && (
-                      <span className="bg-accent text-accent-contrast rounded-full px-2 text-xs font-bold">
+                      <span className="font-display bg-success rounded-md px-2 py-0.5 text-sm font-extrabold tracking-wider text-black uppercase">
                         PR
                       </span>
                     )}
@@ -128,8 +134,8 @@ export function ExerciseHistoryPage() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-semibold tabular-nums">{value}</dd>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="numeric mt-1 text-xl leading-tight">{value}</dd>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/Button'
+import { BarcodeIcon } from '@/components/icons'
 import { SubPage } from '@/components/Page'
 import { dateFromParam } from '@/domain/dates'
 import { suggestMeal } from '@/domain/meals'
@@ -83,7 +84,7 @@ export function AddFoodPage() {
 
   if (mode === 'create') {
     return (
-      <SubPage title="Create food" onBack={() => setMode('search')}>
+      <SubPage title={`Add to ${meal}`} onBack={() => setMode('search')}>
         <CustomFoodForm
           barcode={null}
           energyUnit={energyUnit}
@@ -101,17 +102,17 @@ export function AddFoodPage() {
   return (
     <SubPage title={`Add to ${meal}`} onBack={back}>
       <div className="mb-3 grid grid-cols-3 gap-2">
-        <Link
-          to={scanPath(date, meal)}
-          className="bg-accent text-accent-contrast flex min-h-11 items-center justify-center rounded-xl font-semibold active:opacity-80"
-        >
-          Scan
-        </Link>
-        <Button variant="secondary" onClick={() => setMode('quick')}>
+        <Button asChild className="px-2">
+          <Link to={scanPath(date, meal)}>
+            <BarcodeIcon className="size-5" />
+            Scan
+          </Link>
+        </Button>
+        <Button variant="secondary" className="px-2" onClick={() => setMode('quick')}>
           Quick add
         </Button>
-        <Button variant="secondary" onClick={() => setMode('create')}>
-          Create food
+        <Button variant="secondary" className="px-2" onClick={() => setMode('create')}>
+          New food
         </Button>
       </div>
       <input
@@ -122,7 +123,7 @@ export function AddFoodPage() {
         placeholder="Search foods"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="border-border bg-surface min-h-12 w-full rounded-xl border px-4 text-base outline-none"
+        className="border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 w-full rounded-xl border px-4 text-base transition-colors outline-none"
       />
       <SearchResults query={query} energyUnit={energyUnit} onPick={setSelected} />
     </SubPage>
@@ -230,7 +231,7 @@ function ChoiceList({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="pt-4">
-      <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">{title}</h2>
+      <h2 className="eyebrow mb-1">{title}</h2>
       {children}
     </section>
   )

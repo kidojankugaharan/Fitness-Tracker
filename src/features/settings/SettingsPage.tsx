@@ -20,7 +20,7 @@ function PasswordForm() {
   const valid = password.length >= MIN_PASSWORD_LENGTH && confirm === password
 
   const inputClass =
-    'border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base'
+    'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
   return (
     <Card>
@@ -39,13 +39,13 @@ function PasswordForm() {
         }}
       >
         <div>
-          <h2 className="font-semibold">Password</h2>
+          <h2 className="display text-xl">Password</h2>
           <p className="text-muted text-sm">
             Set one to sign in on other devices without waiting for an email.
           </p>
         </div>
         <label className="block">
-          <span className="text-muted mb-1 block text-xs font-medium">New password</span>
+          <span className="eyebrow mb-1.5 block">New password</span>
           <input
             type="password"
             autoComplete="new-password"
@@ -56,7 +56,7 @@ function PasswordForm() {
           />
         </label>
         <label className="block">
-          <span className="text-muted mb-1 block text-xs font-medium">Confirm password</span>
+          <span className="eyebrow mb-1.5 block">Confirm password</span>
           <input
             type="password"
             autoComplete="new-password"
@@ -126,11 +126,11 @@ function GoalsForm({ profile }: { profile: Profile }) {
             .catch(() => {})
         }}
       >
-        <h2 className="font-semibold">Daily goals</h2>
+        <h2 className="display text-xl">Daily goals</h2>
         <div className="grid grid-cols-2 gap-3">
           {GOAL_FIELDS.map(({ key, label, unit: fieldUnit }) => (
             <label key={key} className="block">
-              <span className="text-muted mb-1 block text-xs font-medium">
+              <span className="eyebrow mb-1.5 block">
                 {key === 'goal_kcal' ? energyLabel(unit) : `${label} (${fieldUnit})`}
               </span>
               <input
@@ -138,7 +138,7 @@ function GoalsForm({ profile }: { profile: Profile }) {
                 value={values[key]}
                 onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
                 aria-invalid={parsed[key] === null}
-                className="border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base tabular-nums"
+                className="border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger numeric min-h-12 w-full rounded-xl border px-4 text-base text-xl transition-colors outline-none"
               />
             </label>
           ))}
@@ -160,7 +160,7 @@ export function SettingsPage() {
   return (
     <Page title="Settings">
       <Card>
-        <p className="text-muted text-sm">Signed in as</p>
+        <p className="eyebrow">Signed in as</p>
         <p className="font-semibold break-all">{session.user.email}</p>
       </Card>
 
@@ -195,7 +195,7 @@ export function SettingsPage() {
                 if (sec === 0) stopRest() // turning the timer off also stops one that's running
                 update.mutate({ rest_timer_default_sec: sec })
               }}
-              className="bg-surface-2 min-h-10 rounded-xl px-3 text-sm font-semibold"
+              className="numeric bg-surface-2 border-border-strong min-h-11 rounded-xl border px-3 text-base"
             >
               {REST_OPTIONS_SEC.map((sec) => (
                 <option key={sec} value={sec}>

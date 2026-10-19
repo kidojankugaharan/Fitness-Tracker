@@ -1,64 +1,121 @@
 @import 'tailwindcss';
 
-/* Design tokens. Light by default, dark follows the OS setting. */
-:root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-2: #eef0f3;
-  --border: #e2e5ea;
-  --text: #0f172a;
-  --text-muted: #5b6474;
-  --accent: #059669;
-  --accent-contrast: #ffffff;
-  --danger: #dc2626;
-  color-scheme: light;
+/*
+ * Design system — bold & sporty, always dark, electric-blue accent.
+ * Display type (headings, big numbers, buttons): Barlow Condensed, uppercase, tight and heavy.
+ * Body type: Inter. Both are self-hosted (Latin only) so they work offline.
+ */
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-600-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../node_modules/@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2')
+    format('woff2');
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+    format('woff2-variations');
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f14;
-    --surface: #131922;
-    --surface-2: #1b2330;
-    --border: #253041;
-    --text: #e8edf4;
-    --text-muted: #94a0b2;
-    --accent: #34d399;
-    --accent-contrast: #052e1f;
-    --danger: #f87171;
-    color-scheme: dark;
-  }
+:root {
+  /* Surfaces, darkest to lightest. */
+  --bg: #05070b;
+  --surface: #0e1219;
+  --surface-2: #161c26;
+  --surface-3: #202837;
+  --border: #1d2430;
+  --border-strong: #2c3647;
+  /* Text. */
+  --text: #f4f7fb;
+  --text-muted: #8893a5;
+  /* Brand. */
+  --accent: #2468df; /* white text on it: 5.1:1 */
+  --accent-bright: #5c9bff;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgb(47 123 255 / 0.16);
+  /* Status. */
+  --danger: #ff4d5e;
+  --danger-soft: rgb(255 77 94 / 0.14);
+  --success: #2ed47a;
+  --warning: #ffb020;
+  /* Macros: one colour each, used for bars and dots everywhere. */
+  --protein: #5c9bff;
+  --carbs: #ffb020;
+  --fat: #ff6b8b;
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--text-muted);
   --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
   --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-protein: var(--protein);
+  --color-carbs: var(--carbs);
+  --color-fat: var(--fat);
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, system-ui, sans-serif;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-}
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-bright);
+    outline-offset: 2px;
+  }
 }
 
 @utility pt-safe {
@@ -66,4 +123,30 @@ body {
 }
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Sporty headline type: condensed, heavy, uppercase. */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Small uppercase labels ("KCAL LEFT", section titles). */
+@utility eyebrow {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+/* Numbers that line up and read big. */
+@utility numeric {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }

@@ -28,7 +28,7 @@ export function AppLayout() {
       <RestTimerBar />
       <nav
         aria-label="Main"
-        className="pb-safe border-border bg-surface/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur"
+        className="pb-safe border-border bg-bg/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-md"
       >
         <ul className="mx-auto grid max-w-xl grid-cols-5">
           {tabs.map(({ to, label, icon: Icon }) => (
@@ -38,13 +38,25 @@ export function AppLayout() {
                 end={to === '/'}
                 className={({ isActive }) =>
                   clsx(
-                    'flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium',
-                    isActive ? 'text-accent' : 'text-muted',
+                    'font-display relative flex h-16 flex-col items-center justify-center gap-1 text-[0.75rem] font-bold tracking-wider uppercase transition-colors',
+                    isActive ? 'text-accent-bright' : 'text-muted active:text-text',
                   )
                 }
               >
-                <Icon className="size-6" />
-                {label}
+                {({ isActive }) => (
+                  <>
+                    {/* Active tab: a blue bar along the top edge. */}
+                    <span
+                      aria-hidden="true"
+                      className={clsx(
+                        'bg-accent absolute top-0 h-[3px] w-10 rounded-b-full transition-opacity',
+                        isActive ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                    <Icon className="size-6" />
+                    {label}
+                  </>
+                )}
               </NavLink>
             </li>
           ))}

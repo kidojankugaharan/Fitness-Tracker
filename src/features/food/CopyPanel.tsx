@@ -21,13 +21,13 @@ export function CopyPanel({ toDate, meal, onDone }: Props) {
   return (
     <div className="bg-surface-2 mx-4 mb-2 space-y-3 rounded-xl p-3">
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Copy {what} from</span>
+        <span className="eyebrow mb-1.5 block">Copy {what} from</span>
         <input
           type="date"
           value={fromDate}
           max={today()}
           onChange={(e) => e.target.value && setFromDate(e.target.value)}
-          className="border-border bg-surface min-h-11 w-full rounded-xl border px-3 text-base"
+          className="border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 w-full rounded-xl border px-4 text-base transition-colors outline-none"
         />
       </label>
       <div className="flex gap-2">

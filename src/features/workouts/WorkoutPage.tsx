@@ -33,14 +33,14 @@ function StartWorkout() {
   return (
     <Page title="Workout">
       <Button
-        className="w-full text-lg"
+        className="min-h-16 w-full text-2xl"
         disabled={start.isPending}
         onClick={() => start.mutate(crypto.randomUUID())}
       >
         {start.isPending ? 'Starting…' : 'Start workout'}
       </Button>
 
-      <h2 className="text-muted pt-3 text-sm font-semibold tracking-wide uppercase">History</h2>
+      <h2 className="eyebrow px-1 pt-4">History</h2>
       {recent.isError && <LoadError what="your history" onRetry={() => recent.refetch()} />}
       {recent.data?.length === 0 && (
         <EmptyState title="No workouts yet" body="Start your first workout and it will show up here." />
@@ -63,14 +63,14 @@ export function WorkoutSummaryCard({ workout }: { workout: WorkoutWithSets }) {
     : null
 
   return (
-    <Card>
-      <div className="flex items-baseline justify-between">
-        <p className="font-semibold">{formatDayLabel(workout.date)}</p>
-        <p className="text-muted text-sm tabular-nums">
+    <Card className="border-l-accent border-l-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="display text-xl">{formatDayLabel(workout.date)}</p>
+        <p className="numeric text-muted text-base">
           {working.length} sets{minutes != null && ` · ${minutes} min`}
         </p>
       </div>
-      <p className="text-muted mt-1 text-sm">{names.join(', ') || 'No exercises logged'}</p>
+      <p className="text-muted mt-1.5 text-sm">{names.join(', ') || 'No exercises logged'}</p>
     </Card>
   )
 }

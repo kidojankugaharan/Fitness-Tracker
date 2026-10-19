@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { DateSwitcher } from '@/components/DateSwitcher'
+import { BarcodeIcon } from '@/components/icons'
 import { MacroSummary } from '@/components/MacroSummary'
 import { Card, LoadError, Page } from '@/components/Page'
 import { dateFromParam, type LocalDate } from '@/domain/dates'
@@ -53,7 +54,8 @@ export function FoodPage() {
     setParams(d === todayDate ? {} : { date: d }, { replace: true })
   }
   const energyUnit = profile?.energy_unit ?? 'kcal'
-  const linkClass = 'active:bg-surface-2 flex min-h-11 items-center px-4 text-sm font-semibold'
+  const linkClass =
+    'font-display active:bg-surface-2 flex min-h-12 items-center gap-1.5 px-4 text-[0.9375rem] font-bold tracking-wide uppercase'
 
   return (
     <Page title="Food" action={<DateSwitcher date={date} onChange={setDate} />}>
@@ -61,7 +63,7 @@ export function FoodPage() {
         <LoadError what="this day's food" onRetry={() => void entriesQuery.refetch()} />
       )}
       {profile && (
-        <Card>
+        <Card className="border-accent/25 bg-[radial-gradient(120%_90%_at_0%_0%,rgb(47_123_255/0.18),transparent_60%)] p-5">
           <MacroSummary eaten={total} profile={profile} missing={missing} />
         </Card>
       )}
@@ -70,14 +72,14 @@ export function FoodPage() {
         const items = withMacros.filter((e) => e.entry.meal === meal)
         const mealKcal = sumMacros(items.map((i) => i.macros)).kcal
         return (
-          <Card key={meal} className="px-0 py-2">
-            <div className="flex items-center justify-between px-4 py-1">
-              <h2 className="font-semibold">{meal}</h2>
-              <span className="text-muted text-sm tabular-nums">
+          <Card key={meal} className="overflow-hidden px-0 pt-3 pb-0">
+            <div className="flex items-baseline justify-between px-4 pb-2">
+              <h2 className="display text-[1.375rem]">{meal}</h2>
+              <span className="numeric text-muted text-base">
                 {items.length > 0 && formatEnergy(mealKcal, energyUnit)}
               </span>
             </div>
-            <ul>
+            <ul className="divide-border border-border divide-y border-t">
               {items.map(({ entry, snapshot, macros }) => (
                 <EntryRow
                   key={entry.id}
@@ -91,11 +93,12 @@ export function FoodPage() {
               ))}
             </ul>
             {copying === meal && <CopyPanel toDate={date} meal={meal} onDone={() => setCopying(null)} />}
-            <div className="flex">
-              <Link to={addFoodPath(date, meal)} className={`text-accent ${linkClass}`}>
+            <div className="border-border bg-surface-2/40 flex border-t">
+              <Link to={addFoodPath(date, meal)} className={`text-accent-bright ${linkClass}`}>
                 + Add food
               </Link>
-              <Link to={scanPath(date, meal)} className={`text-accent ${linkClass}`}>
+              <Link to={scanPath(date, meal)} className={`text-accent-bright ${linkClass}`}>
+                <BarcodeIcon className="size-4" />
                 Scan
               </Link>
               <button
@@ -118,7 +121,7 @@ export function FoodPage() {
         <button
           type="button"
           onClick={() => setCopying(DAY)}
-          className="text-muted min-h-11 w-full text-sm font-semibold"
+          className="font-display text-muted active:text-text min-h-12 w-full text-[0.9375rem] font-bold tracking-wide uppercase"
         >
           Copy a whole day…
         </button>
@@ -153,13 +156,13 @@ function EntryRow({
     <li>
       <Link
         to={`/food/entry/${entry.id}`}
-        className="active:bg-surface-2 flex min-h-14 items-center justify-between gap-3 px-4 py-2"
+        className="active:bg-surface-2 flex min-h-16 items-center justify-between gap-3 px-4 py-2.5"
       >
         <span className="min-w-0">
-          <span className="block truncate font-medium">{name}</span>
+          <span className="block truncate font-semibold">{name}</span>
           <span className="text-muted block truncate text-sm">{detail}</span>
         </span>
-        <span className="shrink-0 text-sm font-semibold tabular-nums">{kcal}</span>
+        <span className="numeric shrink-0 text-lg">{kcal}</span>
       </Link>
     </li>
   )

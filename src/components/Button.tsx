@@ -5,10 +5,12 @@ import type { ButtonHTMLAttributes } from 'react'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-accent text-accent-contrast active:opacity-80',
-  secondary: 'bg-surface-2 text-text active:opacity-80',
-  ghost: 'text-text active:bg-surface-2',
-  danger: 'bg-surface-2 text-danger active:opacity-80',
+  primary: 'bg-accent text-accent-contrast shadow-[0_6px_24px_-8px_rgb(47_123_255/0.7)] active:brightness-90',
+  secondary: 'bg-surface-2 text-text border border-border-strong active:bg-surface-3',
+  // Low-emphasis actions are often sentence-long ("No password yet? …"): body type, no caps.
+  ghost:
+    'font-sans! normal-case! tracking-normal! text-base! font-semibold! text-muted active:bg-surface-2 active:text-text',
+  danger: 'bg-danger-soft text-danger active:brightness-125',
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; asChild?: boolean }
@@ -19,7 +21,7 @@ export function Button({ variant = 'primary', asChild, className, type = 'button
     <Comp
       type={asChild ? undefined : type}
       className={clsx(
-        'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold transition disabled:opacity-50',
+        'font-display inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-[1.0625rem] font-bold tracking-wide uppercase transition active:scale-[0.98] disabled:opacity-40 disabled:shadow-none',
         variants[variant],
         className,
       )}

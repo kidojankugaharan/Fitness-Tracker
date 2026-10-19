@@ -41,15 +41,16 @@ export function RestTimerBar() {
 
   const fraction = done ? 1 : 1 - remainingMs / (timer.durationSec * 1000)
   const secondsLeft = Math.ceil(remainingMs / 1000)
-  const button = 'active:bg-surface-2 min-h-11 min-w-12 rounded-xl px-2 text-sm font-semibold'
+  const button =
+    'font-display bg-surface-2 active:bg-surface-3 min-h-11 min-w-12 rounded-xl px-2.5 text-base font-bold tracking-wide uppercase'
 
   return (
     <div
       role="timer"
       aria-label="Rest timer"
-      className="border-border bg-surface fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t"
+      className="border-border bg-surface/95 fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t backdrop-blur-md"
     >
-      <div className="bg-surface-2 h-1">
+      <div className="bg-surface-3 h-1">
         <div
           className={done ? 'bg-accent h-full' : 'bg-accent h-full transition-[width] duration-200'}
           style={{ width: `${Math.min(1, Math.max(0, fraction)) * 100}%` }}
@@ -57,7 +58,7 @@ export function RestTimerBar() {
       </div>
       <div className="mx-auto flex max-w-xl items-center gap-2 px-4 py-1.5">
         <div className="min-w-0 flex-1">
-          <p className={done ? 'text-accent text-lg font-bold' : 'text-lg font-bold tabular-nums'}>
+          <p className={done ? 'display text-success text-2xl' : 'numeric text-3xl leading-none'}>
             {done ? 'Rest over — go!' : formatDuration(secondsLeft)}
           </p>
           {timer.label && <p className="text-muted truncate text-xs">{timer.label}</p>}

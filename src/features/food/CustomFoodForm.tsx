@@ -38,7 +38,7 @@ const EXTRA_NUTRIENTS = [
 type NutrientKey = (typeof NUTRIENTS)[number]['key'] | (typeof EXTRA_NUTRIENTS)[number]['key']
 
 const inputClass =
-  'border-border bg-surface-2 aria-invalid:border-danger min-h-11 w-full rounded-xl border px-3 text-base'
+  'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
 /** Enter a food from its nutrition label, as printed (per serving or per 100 g). */
 export function CustomFoodForm({
@@ -109,7 +109,7 @@ export function CustomFoodForm({
       }}
     >
       <div>
-        <h2 className="text-xl font-bold">{initialPer100 ? 'Correct this food' : 'New food'}</h2>
+        <h2 className="display text-[1.75rem]">{initialPer100 ? 'Correct this food' : 'New food'}</h2>
         {barcode && (
           <p className="text-muted text-sm">
             {initialPer100
@@ -120,7 +120,7 @@ export function CustomFoodForm({
       </div>
 
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Name</span>
+        <span className="eyebrow mb-1.5 block">Name</span>
         <input
           required
           maxLength={200}
@@ -130,7 +130,7 @@ export function CustomFoodForm({
         />
       </label>
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Brand (optional)</span>
+        <span className="eyebrow mb-1.5 block">Brand (optional)</span>
         <input
           maxLength={200}
           value={brand}
@@ -151,9 +151,7 @@ export function CustomFoodForm({
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-muted mb-1 block text-xs font-medium">
-            Serving size (g){basis === '100g' && ' — optional'}
-          </span>
+          <span className="eyebrow mb-1.5 block">Serving size (g){basis === '100g' && ' — optional'}</span>
           <input
             inputMode="decimal"
             value={servingGrams}
@@ -163,7 +161,7 @@ export function CustomFoodForm({
           />
         </label>
         <label className="block">
-          <span className="text-muted mb-1 block text-xs font-medium">Serving name (optional)</span>
+          <span className="eyebrow mb-1.5 block">Serving name (optional)</span>
           <input
             maxLength={60}
             placeholder="1 bar"
@@ -188,7 +186,7 @@ export function CustomFoodForm({
       </div>
 
       <details className="group">
-        <summary className="text-accent cursor-pointer text-sm font-semibold">More nutrients</summary>
+        <summary className="text-accent-bright cursor-pointer text-sm font-semibold">More nutrients</summary>
         <div className="mt-3 grid grid-cols-2 gap-3">
           {EXTRA_NUTRIENTS.map(({ key, label }) => (
             <NutrientInput
@@ -235,7 +233,7 @@ function NutrientInput({
 }) {
   return (
     <label className="block">
-      <span className="text-muted mb-1 block text-xs font-medium">{label}</span>
+      <span className="eyebrow mb-1.5 block">{label}</span>
       <input
         inputMode="decimal"
         required={required}

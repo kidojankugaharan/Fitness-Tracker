@@ -45,7 +45,7 @@ export function ExercisePicker({ excludeIds, onPick, onClose }: Props) {
             placeholder="Search exercises"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="border-border bg-surface min-h-11 flex-1 rounded-xl border px-4 text-base outline-none"
+            className="border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 flex-1 rounded-xl border px-4 text-base transition-colors outline-none"
           />
           <Button variant="ghost" onClick={onClose}>
             Cancel
@@ -59,8 +59,10 @@ export function ExercisePicker({ excludeIds, onPick, onClose }: Props) {
               aria-pressed={category === c}
               onClick={() => setCategory(category === c ? null : c)}
               className={clsx(
-                'min-h-9 shrink-0 rounded-full px-3 text-sm font-medium',
-                category === c ? 'bg-accent text-accent-contrast' : 'bg-surface-2 text-muted',
+                'font-display min-h-10 shrink-0 rounded-full border px-4 text-[0.9375rem] font-bold tracking-wide uppercase transition-colors',
+                category === c
+                  ? 'border-accent bg-accent text-accent-contrast'
+                  : 'border-border-strong bg-surface-2 text-muted',
               )}
             >
               {c}
@@ -86,7 +88,7 @@ export function ExercisePicker({ excludeIds, onPick, onClose }: Props) {
                 </Button>
               )}
               {!query.trim() && (
-                <Button variant="ghost" className="mb-2 w-full" onClick={() => setCreating(true)}>
+                <Button variant="secondary" className="mb-2 w-full" onClick={() => setCreating(true)}>
                   + New custom exercise
                 </Button>
               )}
@@ -97,10 +99,10 @@ export function ExercisePicker({ excludeIds, onPick, onClose }: Props) {
                     <button
                       type="button"
                       onClick={() => onPick(e)}
-                      className="active:bg-surface-2 flex min-h-14 w-full items-center justify-between gap-3 text-left"
+                      className="active:bg-surface-2 flex min-h-16 w-full items-center justify-between gap-3 text-left"
                     >
-                      <span className="font-medium">{e.name}</span>
-                      <span className="text-muted text-sm">{e.user_id ? 'Custom' : e.category}</span>
+                      <span className="text-[1.0625rem] font-semibold">{e.name}</span>
+                      <span className="eyebrow">{e.user_id ? 'Custom' : e.category}</span>
                     </button>
                   </li>
                 ))}
@@ -132,7 +134,8 @@ function CreateExerciseForm({
   const [category, setCategory] = useState<ExerciseCategory>(initialCategory)
   const [type, setType] = useState<ExerciseType>('weight_reps')
 
-  const selectClass = 'border-border bg-surface min-h-11 w-full rounded-xl border px-3 text-base'
+  const selectClass =
+    'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
   return (
     <form
@@ -143,9 +146,9 @@ function CreateExerciseForm({
         create.mutate({ name, category, type }, { onSuccess: onCreated })
       }}
     >
-      <h2 className="text-lg font-semibold">New exercise</h2>
+      <h2 className="display text-2xl">New exercise</h2>
       <label className="block">
-        <span className="text-muted mb-1 block text-sm">Name</span>
+        <span className="eyebrow mb-1.5 block">Name</span>
         <input
           autoFocus
           required
@@ -156,7 +159,7 @@ function CreateExerciseForm({
         />
       </label>
       <label className="block">
-        <span className="text-muted mb-1 block text-sm">Category</span>
+        <span className="eyebrow mb-1.5 block">Category</span>
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value as ExerciseCategory)}
@@ -168,7 +171,7 @@ function CreateExerciseForm({
         </select>
       </label>
       <label className="block">
-        <span className="text-muted mb-1 block text-sm">Tracks</span>
+        <span className="eyebrow mb-1.5 block">Tracks</span>
         <select
           value={type}
           onChange={(e) => setType(e.target.value as ExerciseType)}

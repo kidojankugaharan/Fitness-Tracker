@@ -36,17 +36,17 @@ export function NumberStepper({
 
   return (
     <div className="min-w-0 flex-1">
-      <label htmlFor={id} className="text-muted mb-1 block text-xs font-medium">
+      <label htmlFor={id} className="eyebrow mb-1.5 block">
         {label}
       </label>
       <div
-        className={`bg-surface-2 flex items-stretch overflow-hidden rounded-xl border ${invalid ? 'border-danger' : 'border-border'}`}
+        className={`bg-surface-2 focus-within:border-accent flex items-stretch overflow-hidden rounded-xl border transition-colors ${invalid ? 'border-danger' : 'border-border-strong'}`}
       >
         <button
           type="button"
           aria-label={`Decrease ${label}`}
           onClick={() => bump(-1)}
-          className="active:bg-border min-h-12 w-12 shrink-0 text-xl font-bold"
+          className="active:bg-surface-3 text-muted active:text-text min-h-14 w-12 shrink-0 text-2xl font-bold"
         >
           −
         </button>
@@ -58,13 +58,13 @@ export function NumberStepper({
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={invalid}
           onFocus={(e) => e.target.select()}
-          className="min-w-0 flex-1 bg-transparent text-center text-lg font-semibold tabular-nums outline-none"
+          className="numeric min-w-0 flex-1 bg-transparent text-center text-2xl outline-none"
         />
         <button
           type="button"
           aria-label={`Increase ${label}`}
           onClick={() => bump(1)}
-          className="active:bg-border min-h-12 w-12 shrink-0 text-xl font-bold"
+          className="active:bg-surface-3 text-muted active:text-text min-h-14 w-12 shrink-0 text-2xl font-bold"
         >
           +
         </button>

@@ -4,6 +4,7 @@ import { Navigate, useLocation } from 'react-router'
 import { useAuth } from '@/app/useAuth'
 import { FullScreenSpinner } from '@/app/RequireAuth'
 import { Button } from '@/components/Button'
+import { BoltIcon } from '@/components/icons'
 import {
   sendSignInEmail,
   signInWithPassword as passwordSignIn,
@@ -19,7 +20,7 @@ const RESEND_COOLDOWN_SEC = 60
 const LAST_SENT_KEY = 'auth:last-email-sent-at'
 
 const inputClass =
-  'min-h-12 w-full rounded-xl border border-border bg-surface px-4 text-base outline-none focus:border-accent'
+  'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
 export function SignInPage() {
   const { session, loading } = useAuth()
@@ -80,7 +81,7 @@ export function SignInPage() {
 
   const emailField = (
     <>
-      <label className="block text-sm font-medium" htmlFor="email">
+      <label className="eyebrow block" htmlFor="email">
         Email
       </label>
       <input
@@ -98,14 +99,23 @@ export function SignInPage() {
   )
 
   return (
-    <div className="pt-safe mx-auto flex min-h-full max-w-sm flex-col justify-center px-4">
-      <h1 className="text-3xl font-bold tracking-tight">Fitness Tracker</h1>
-      <p className="text-muted mt-2">Log food and workouts in seconds.</p>
+    <div className="pt-safe relative mx-auto flex min-h-full max-w-sm flex-col justify-center px-4">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(60%_70%_at_50%_0%,rgb(47_123_255/0.28),transparent_70%)]"
+      />
+      <div className="relative">
+        <span className="bg-accent mb-5 grid size-14 place-items-center rounded-2xl shadow-[0_10px_30px_-8px_rgb(47_123_255/0.9)]">
+          <BoltIcon className="size-8 text-white" />
+        </span>
+        <h1 className="display text-[3.25rem] leading-[0.9]">Fitness Tracker</h1>
+        <p className="text-muted mt-3 text-base">Log food and workouts in seconds.</p>
+      </div>
 
       {mode.kind === 'password' && (
         <form onSubmit={signInWithPassword} className="mt-8 space-y-3">
           {emailField}
-          <label className="block text-sm font-medium" htmlFor="password">
+          <label className="eyebrow block" htmlFor="password">
             Password
           </label>
           <input

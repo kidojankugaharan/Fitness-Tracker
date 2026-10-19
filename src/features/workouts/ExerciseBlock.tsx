@@ -92,24 +92,29 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <Link to={`/workout/exercise/${exercise.id}`} className="text-lg font-semibold">
+        <Link to={`/workout/exercise/${exercise.id}`} className="display text-[1.5rem] active:opacity-70">
           {exercise.name}
         </Link>
         {onRemove && (
-          <button type="button" onClick={onRemove} className="text-muted min-h-11 px-2 text-sm">
+          <button
+            type="button"
+            onClick={onRemove}
+            className="font-display text-muted min-h-11 px-2 text-sm font-bold tracking-wide uppercase"
+          >
             Remove
           </button>
         )}
       </div>
 
       {lastSession.length > 0 && (
-        <p className="text-muted text-sm">
-          Last time: {lastSession.map((s) => formatSet(s, exercise.type, units)).join(', ')}
+        <p className="text-muted bg-surface-2 rounded-lg px-3 py-2 text-sm">
+          <span className="eyebrow">Last time:</span>{' '}
+          {lastSession.map((s) => formatSet(s, exercise.type, units)).join(', ')}
         </p>
       )}
 
       {ordered.length > 0 && (
-        <ol className="divide-border divide-y">
+        <ol className="divide-border border-border divide-y border-y">
           {ordered.map((set) => {
             const label = set.is_warmup ? 'W' : String(++workingIndex)
             return (
@@ -143,8 +148,10 @@ export function ExerciseBlock({ workout, exercise, exerciseOrder, sets, units, r
           aria-pressed={warmup}
           onClick={() => setWarmup((w) => !w)}
           className={clsx(
-            'min-h-11 rounded-xl px-3 text-sm font-semibold',
-            warmup ? 'bg-text text-bg' : 'bg-surface-2 text-muted',
+            'font-display min-h-12 rounded-xl border px-4 text-[0.9375rem] font-bold tracking-wide uppercase transition-colors',
+            warmup
+              ? 'border-warning bg-warning/15 text-warning'
+              : 'border-border-strong bg-surface-2 text-muted',
           )}
         >
           Warm-up
@@ -169,12 +176,19 @@ function SetRow({
   onDelete: () => void
 }) {
   return (
-    <li className="flex min-h-11 items-center gap-3">
-      <span className="text-muted w-5 text-center text-sm font-semibold">{label}</span>
-      <span className="flex-1 font-medium tabular-nums">{text}</span>
+    <li className="flex min-h-12 items-center gap-3">
+      <span
+        className={clsx(
+          'numeric grid size-7 shrink-0 place-items-center rounded-md text-sm',
+          label === 'W' ? 'bg-warning/15 text-warning' : 'bg-surface-3 text-muted',
+        )}
+      >
+        {label}
+      </span>
+      <span className="numeric flex-1 text-xl">{text}</span>
       {prs && prs.length > 0 && (
         <span
-          className="bg-accent text-accent-contrast rounded-full px-2 py-0.5 text-xs font-bold"
+          className="font-display bg-success rounded-md px-2 py-0.5 text-sm font-extrabold tracking-wider text-black uppercase"
           title={prs.map((k) => PR_LABELS[k]).join(', ')}
         >
           PR
@@ -184,7 +198,7 @@ function SetRow({
         type="button"
         aria-label={`Delete set ${label}`}
         onClick={onDelete}
-        className="text-muted active:bg-surface-2 size-11 rounded-full text-lg"
+        className="text-muted active:bg-surface-2 active:text-danger size-11 rounded-full text-xl"
       >
         ×
       </button>

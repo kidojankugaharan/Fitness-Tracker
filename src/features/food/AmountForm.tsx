@@ -70,7 +70,8 @@ export function AmountForm({
     )
   }
 
-  const selectClass = 'border-border bg-surface-2 min-h-12 w-full rounded-xl border px-3 text-base'
+  const selectClass =
+    'border-border-strong bg-surface-2 focus:border-accent aria-invalid:border-danger min-h-12 rounded-xl border px-4 text-base outline-none transition-colors w-full'
 
   return (
     <form
@@ -81,11 +82,11 @@ export function AmountForm({
       }}
     >
       <div>
-        <h2 className="text-xl font-bold">{name}</h2>
+        <h2 className="display text-[1.75rem]">{name}</h2>
         {brand && <p className="text-muted">{brand}</p>}
       </div>
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 [&_select]:min-h-14">
         <NumberStepper
           label="Amount"
           value={quantity}
@@ -94,7 +95,7 @@ export function AmountForm({
           decimals={2}
         />
         <label className="w-40 shrink-0">
-          <span className="text-muted mb-1 block text-xs font-medium">Unit</span>
+          <span className="eyebrow mb-1.5 block">Unit</span>
           <select
             aria-label="Unit"
             value={unit}
@@ -112,7 +113,7 @@ export function AmountForm({
       </div>
 
       <label className="block">
-        <span className="text-muted mb-1 block text-xs font-medium">Meal</span>
+        <span className="eyebrow mb-1.5 block">Meal</span>
         <select value={meal} onChange={(e) => setMeal(e.target.value)} className={selectClass}>
           {[...new Set([...meals, initial.meal])].map((m) => (
             <option key={m}>{m}</option>
@@ -120,7 +121,7 @@ export function AmountForm({
         </select>
       </label>
 
-      <div className="bg-surface-2 grid grid-cols-4 gap-2 rounded-xl p-3 text-center text-sm">
+      <div className="bg-surface border-border grid grid-cols-4 gap-2 rounded-2xl border p-4 text-center">
         <Preview label={energyUnit} value={formatEnergy(m.kcal, energyUnit).split(' ')[0]!} />
         <Preview label="Protein" value={`${formatNumber(m.protein, 1)} g`} unknown={per100.protein == null} />
         <Preview label="Carbs" value={`${formatNumber(m.carbs, 1)} g`} unknown={per100.carbs == null} />
@@ -148,8 +149,8 @@ export function AmountForm({
 function Preview({ label, value, unknown }: { label: string; value: string; unknown?: boolean }) {
   return (
     <div>
-      <p className="font-semibold tabular-nums">{unknown ? '?' : value}</p>
-      <p className="text-muted">{label}</p>
+      <p className="numeric text-2xl leading-none">{unknown ? '?' : value}</p>
+      <p className="eyebrow mt-1.5">{label}</p>
     </div>
   )
 }

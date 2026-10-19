@@ -73,7 +73,11 @@ export function BarcodeResultPage() {
           footer={
             <p className="text-muted text-center text-xs">
               Barcode {code} · Wrong name or details?{' '}
-              <button type="button" className="text-accent font-semibold" onClick={() => setCreating(true)}>
+              <button
+                type="button"
+                className="text-accent-bright font-semibold"
+                onClick={() => setCreating(true)}
+              >
                 Edit it
               </button>
             </p>
