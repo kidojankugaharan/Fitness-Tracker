@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { addDays, today } from '../src/domain/dates'
 import { VIDEO_BARCODE } from '../playwright.config'
-import { installFakeBackend, seedTables, signIn, USER_ID } from './fake-supabase'
+import { installFakeBackend, OFF_PRODUCTS, seedTables, signIn, USER_ID } from './fake-supabase'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -32,11 +32,9 @@ test('unknown barcode: enter the label once, then the next scan finds it instant
   const db = await installFakeBackend(page)
   const code = '036000291452' // valid UPC-A, not in the fake OFF database
 
-  await page.goto('/food/scan?meal=Lunch')
-  await page.getByLabel('Barcode number').fill(code)
-  await page.getByRole('button', { name: 'Look up' }).click()
+  await page.goto(`/food/barcode/${code}?meal=Lunch`)
 
-  await expect(page.getByText('Not in Open Food Facts yet')).toBeVisible()
+  await expect(page.getByText('Not in the food databases yet')).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill('Protein Bar')
   await page.getByLabel('Serving size (g)').fill('60')
   await page.getByLabel('Calories (kcal)').fill('210')
@@ -56,9 +54,7 @@ test('unknown barcode: enter the label once, then the next scan finds it instant
   await expect(page.getByText('210 / 2000 eaten')).toBeVisible()
 
   // Scanning it again (as the EAN-13 spelling) resolves locally, straight to the amount screen.
-  await page.goto(`/food/scan?meal=Lunch`)
-  await page.getByLabel('Barcode number').fill(`0${code}`)
-  await page.getByRole('button', { name: 'Look up' }).click()
+  await page.goto(`/food/barcode/0${code}?meal=Lunch`)
   await expect(page.getByRole('heading', { name: 'Protein Bar' })).toBeVisible()
 })
 
@@ -164,4 +160,34 @@ test('finishing a workout stops the rest timer', async ({ page }) => {
   await expect(page.getByRole('timer')).toBeVisible()
   await page.getByRole('button', { name: 'Finish workout' }).click()
   await expect(page.getByRole('timer')).toHaveCount(0)
+})
+
+test('a barcode Open Food Facts lacks is found in the USDA database and cached', async ({ page }) => {
+  const db = await installFakeBackend(page)
+  await page.goto(`/food/barcode/055000123457?meal=Lunch`) // only in the fake USDA data
+  await expect(page.getByRole('heading', { name: 'Greek Yogurt, Vanilla' })).toBeVisible()
+  await expect(page.getByLabel('Unit')).toHaveValue('3/4 cup')
+  await page.getByRole('button', { name: 'Add to diary' }).click()
+  await expect.poll(() => db.food_entries!.length).toBe(1)
+  expect(db.foods!.map((f) => f.off_code)).toEqual(['0055000123457']) // next scan stays local
+})
+
+test('a product Open Food Facts files under its short UPC-E code is still found', async ({ page }) => {
+  OFF_PRODUCTS['04963406'] = {
+    product_name: 'Coke Original Taste',
+    brands: 'Coca-Cola',
+    nutriments: { 'energy-kcal_100g': 42, carbohydrates_100g: 10.6, proteins_100g: 0, fat_100g: 0 },
+  }
+  await installFakeBackend(page)
+  await page.goto(`/food/barcode/049000006346?meal=Lunch`) // the same product's 12-digit UPC-A
+  await expect(page.getByRole('heading', { name: 'Coke Original Taste' })).toBeVisible()
+})
+
+test('a barcode can be typed in when the camera cannot read it', async ({ page, browserName }) => {
+  test.skip(browserName === 'chromium', "Chrome's fake camera shows a barcode and would scan it first")
+  await installFakeBackend(page)
+  await page.goto('/food/scan?meal=Lunch')
+  await page.getByLabel('Barcode number').fill('3017624010701')
+  await page.getByRole('button', { name: 'Look up' }).click()
+  await expect(page.getByRole('heading', { name: 'Nutella' })).toBeVisible()
 })

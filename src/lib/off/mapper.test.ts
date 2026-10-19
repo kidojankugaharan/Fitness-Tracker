@@ -87,4 +87,29 @@ describe('blank nutrient strings', () => {
   it('rejects a product whose only energy value is blank', () => {
     expect(mapOffProduct({ code: '1', product_name: 'X', nutriments: { 'energy-kcal_100g': '' } })).toBeNull()
   })
+
+  it('falls back to "as prepared" values and says so in the name', () => {
+    const food = mapOffProduct({
+      code: '7613035676497',
+      product_name: 'Ricoré',
+      nutriments: {
+        'energy-kcal_prepared_100g': 50,
+        carbohydrates_prepared_100g: 5,
+        proteins_prepared_100g: 3,
+      },
+    })
+    expect(food?.name).toBe('Ricoré (prepared)')
+    expect(food?.per100).toMatchObject({ kcal: 50, carbs: 5, protein: 3, fat: null })
+  })
+
+  it('scales per-serving-only nutrition to 100 g', () => {
+    const food = mapOffProduct({
+      code: '0060383000000',
+      product_name: 'Granola bar',
+      serving_size: '40 g',
+      serving_quantity: 40,
+      nutriments: { 'energy-kcal_serving': 180, proteins_serving: 4, fat_serving: 6 },
+    })
+    expect(food?.per100).toMatchObject({ kcal: 450, protein: 10, fat: 15, carbs: null })
+  })
 })

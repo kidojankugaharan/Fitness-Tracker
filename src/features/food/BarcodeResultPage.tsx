@@ -27,7 +27,9 @@ export function BarcodeResultPage() {
   const back = () => navigate(diaryPath(date))
   const scanAgain = () => navigate(scanPath(date, meal), { replace: true })
 
-  if (lookup.isPending && !creating) return <FullScreenSpinner />
+  // While a remembered miss is re-checked, wait rather than flash "not found".
+  const rechecking = lookup.isFetching && lookup.data?.status !== 'found'
+  if ((lookup.isPending || rechecking) && !creating) return <FullScreenSpinner />
 
   // "Enter it manually" sets creating, which falls through to the label form below.
   if (lookup.error && !creating) {
@@ -87,11 +89,13 @@ export function BarcodeResultPage() {
     <SubPage title="New food" onBack={back}>
       {!creating && (
         <Card className="mb-4">
-          <p className="font-semibold">{prefill ? 'Nutrition info missing' : 'Not in Open Food Facts yet'}</p>
+          <p className="font-semibold">
+            {prefill ? 'Nutrition info missing' : 'Not in the food databases yet'}
+          </p>
           <p className="text-muted mt-1 text-sm">
             {prefill
               ? `${prefill.name ?? 'This product'} has no calorie data. Enter it from the label once and it's saved for next time.`
-              : `Barcode ${code} wasn't found. Enter it from the label once and it's saved for next time.`}
+              : `Barcode ${code} isn't in Open Food Facts or the USDA database. Enter it from the label once and it's saved for next time.`}
           </p>
           <Button variant="ghost" className="mt-2 w-full" onClick={scanAgain}>
             Scan again

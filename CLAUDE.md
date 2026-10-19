@@ -35,7 +35,15 @@ A mobile-friendly web app combining **food & macro logging** (MyFitnessPal-style
 ## Open Food Facts integration
 
 - **Search** uses search-a-licious (`search.openfoodfacts.org/search`), which sends **no CORS headers**, so the browser calls the same-origin path `/off-search/*`: proxied by Vite (`server.proxy`/`preview.proxy` in vite.config.ts) locally and by a rewrite in vercel.json in production. The legacy `/cgi/search.pl` endpoint returned 503 when checked (2026-10-18).
-- **Product lookup** (`world.openfoodfacts.org/api/v2/product/{code}`) allows CORS (`*`) and is called directly for barcode lookups (`lookupOffBarcode`). Unknown codes return HTTP 200 with `status: 0` (404 also handled). OFF itself matches UPC-A to the EAN-13 form.
+- **Product lookup** (`world.openfoodfacts.org/api/v2/product/{code}`) allows CORS (`*`) and is called directly for barcode lookups (`lookupOffBarcode`). Unknown codes return HTTP 200 with `status: 0` (404 also handled). OFF itself matches UPC-A to the EAN-13 form, but it can hold the same product as separate entries under other spellings (e.g. UPC-E `04963406`), so `lookupOffBarcodeVariants` tries each spelling.
+- The mapper falls back to "as prepared" values (name suffixed "(prepared)") and to per-serving values scaled to 100 g when a product has no per-100 g nutrition.
+
+## USDA FoodData Central (second barcode source)
+
+- OFF is thin for North America (the user is in Canada), so barcodes OFF doesn't know are looked up in USDA FoodData Central branded foods (US products; many Canadian products share the UPC).
+- Called only via our Vercel function `api/fdc-barcode.ts` (`GET /api/fdc-barcode?code=<GTIN>` → `{ food }`), which holds `FDC_API_KEY` (server env, no `VITE_` prefix; unset = `DEMO_KEY`, ~10/hour). One search lists the 12/13/14-digit spellings; only an exact GTIN match is returned. Responses are edge-cached (`s-maxage`). `vite dev`/`preview` serve the same handler via a plugin in vite.config.ts; e2e tests fake it (`FDC_FOODS` in `e2e/fake-supabase.ts`).
+- The function file must stay self-contained (no relative imports) so Vercel deploys it as one file.
+- Mapped client-side (`src/lib/fdc/mapper.ts`, nutrient ids 1008/2047/2048 energy, 1003 protein, 1004 fat, 1005 carbs, 1079 fiber, 2000 sugars, 1258 sat fat, 1093 sodium mg; values per 100 g or ml) into the OffFood shape and cached with `cache_off_food` like an OFF product (stored `source` is `'off'`, meaning "external database"). An FDC failure is never fatal: it falls back to not found.
 - search-a-licious returns `brands` as an array; the v2 product API returns a comma-separated string. The mapper (`src/lib/off/mapper.ts`) handles both.
 - **Rate limits**: search ≈ 10 req/min, product (barcode) lookup ≈ 100 req/min. Therefore:
   - Search the user's own foods (recent, frequent, favorites, custom) **first**, locally/from Supabase, with zero OFF calls.
@@ -171,7 +179,7 @@ supabase/
 
 Done 2026-10-19 (verified with Playwright against the fake backend):
 
-- **Barcode scanning** (moved up from Phase 4: it is the user's main way to log food). `/food/scan` → `/food/barcode/:code`. Lookup order: user's own foods with that barcode → shared OFF cache → OFF product API; tries UPC-A/EAN-13/UPC-E variants (`src/domain/barcode.ts`). Not found / no nutrition → custom food form pre-filled with the barcode, so the next scan resolves locally. "Add & scan next" returns to the scanner, which ignores the just-scanned code until it leaves the frame (prevents double logs).
+- **Barcode scanning** (moved up from Phase 4: it is the user's main way to log food). `/food/scan` → `/food/barcode/:code`. Lookup order: user's own foods with that barcode → shared barcode cache → OFF product API → USDA FoodData Central (`/api/fdc-barcode`); a remembered miss is always re-checked on open. Tries UPC-A/EAN-13/UPC-E variants (`src/domain/barcode.ts`). Not found / no nutrition → custom food form pre-filled with the barcode, so the next scan resolves locally. "Add & scan next" returns to the scanner, which ignores the just-scanned code until it leaves the frame (prevents double logs).
 - **Custom foods** (enter label per serving or per 100 g; stored per 100 g), **quick-add calories** (snapshot `kind: 'quick'`, stored as 100 g of per-100g = typed values, `food_id` null), **copy a meal or whole day** from any date.
 - **Rest timer**: starts on every logged set (length in Settings, 0 = off), persisted end time, bar above the tabs on every screen, vibrate + beep when done (only while the app is open), stops when a workout is finished/discarded.
 

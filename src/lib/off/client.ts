@@ -25,7 +25,28 @@ export type OffLookup =
   | { status: 'incomplete'; name: string | null; brand: string | null }
   | { status: 'not_found' }
 
-export async function lookupOffBarcode(code: string, signal?: AbortSignal): Promise<OffLookup> {
+/**
+ * Look a product up under every spelling of its barcode, canonical first. OFF can hold the same
+ * product as separate entries (e.g. a UPC-E "04963406" and its expanded form), so a miss on one
+ * spelling isn't final. The food is always keyed by `canonical`.
+ */
+export async function lookupOffBarcodeVariants(
+  canonical: string,
+  variants: string[],
+  signal?: AbortSignal,
+): Promise<OffLookup> {
+  // OFF itself resolves a 12-digit UPC-A to its 13-digit form, so that spelling needs no extra call.
+  const spellings = variants.filter((v) => !(v.length === 12 && variants.includes(`0${v}`)))
+  let incomplete: OffLookup | null = null
+  for (const spelling of spellings) {
+    const result = await lookupOffBarcode(spelling, signal, canonical)
+    if (result.status === 'found') return result
+    if (result.status === 'incomplete') incomplete ??= result
+  }
+  return incomplete ?? { status: 'not_found' }
+}
+
+export async function lookupOffBarcode(code: string, signal?: AbortSignal, keyAs = code): Promise<OffLookup> {
   const params = new URLSearchParams({ fields: OFF_FIELDS })
   const res = await fetch(`${PRODUCT_BASE}/${encodeURIComponent(code)}?${params}`, { signal })
   if (res.status === 404) return { status: 'not_found' }
@@ -35,7 +56,7 @@ export async function lookupOffBarcode(code: string, signal?: AbortSignal): Prom
   if (body.status !== 1 || !body.product) return { status: 'not_found' }
 
   // Key the food by the scanned code so the next scan of it hits our cache.
-  const food = mapOffProduct({ ...body.product, code })
+  const food = mapOffProduct({ ...body.product, code: keyAs })
   if (food) return { status: 'found', food }
   const name = (body.product.product_name || body.product.product_name_en || '').trim() || null
   const brands = body.product.brands

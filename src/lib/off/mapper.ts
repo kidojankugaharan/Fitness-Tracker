@@ -43,8 +43,34 @@ function num(value: unknown): number | null {
   return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : null
 }
 
-function grams100(nutriments: OffProduct['nutriments'], key: string): number | null {
-  const v = num(nutriments?.[`${key}_100g`])
+/**
+ * Where a product's nutrition lives. Most products have per-100 g values; some only list them "as
+ * prepared" (powders made up with milk/water), and some only per serving (scaled to 100 g here).
+ */
+type NutrientSource = { suffix: '_100g' | '_prepared_100g' | '_serving'; scale: number; prepared: boolean }
+
+function nutrientSource(p: OffProduct): NutrientSource | null {
+  const n = p.nutriments
+  const hasEnergy = (suffix: string) =>
+    num(n?.[`energy-kcal${suffix}`]) != null ||
+    num(n?.[`energy-kj${suffix}`]) != null ||
+    num(n?.[`energy${suffix}`]) != null
+  if (hasEnergy('_100g')) return { suffix: '_100g', scale: 1, prepared: false }
+  if (hasEnergy('_prepared_100g')) return { suffix: '_prepared_100g', scale: 1, prepared: true }
+  const servingGrams = num(p.serving_quantity)
+  if (servingGrams != null && servingGrams > 0 && hasEnergy('_serving')) {
+    return { suffix: '_serving', scale: 100 / servingGrams, prepared: false }
+  }
+  return null
+}
+
+function nutrient(n: OffProduct['nutriments'], key: string, src: NutrientSource): number | null {
+  const v = num(n?.[`${key}${src.suffix}`])
+  return v == null ? null : v * src.scale
+}
+
+function grams100(n: OffProduct['nutriments'], key: string, src: NutrientSource): number | null {
+  const v = nutrient(n, key, src)
   return v != null && v <= MAX_GRAMS_100G ? round(v) : null
 }
 
@@ -66,11 +92,13 @@ export function mapOffProduct(p: OffProduct): OffFood | null {
   if (!code || !name) return null
 
   const n = p.nutriments
-  const kj = num(n?.['energy-kj_100g']) ?? num(n?.['energy_100g'])
-  const kcal = num(n?.['energy-kcal_100g']) ?? (kj != null ? kj / KJ_PER_KCAL : null)
+  const src = nutrientSource(p)
+  if (!src) return null
+  const kj = nutrient(n, 'energy-kj', src) ?? nutrient(n, 'energy', src)
+  const kcal = nutrient(n, 'energy-kcal', src) ?? (kj != null ? kj / KJ_PER_KCAL : null)
   if (kcal == null || kcal > MAX_KCAL_100G) return null
 
-  const sodiumG = num(n?.['sodium_100g'])
+  const sodiumG = nutrient(n, 'sodium', src)
   const servingGrams = num(p.serving_quantity)
   const servings: Serving[] =
     servingGrams != null && servingGrams > 0
@@ -79,16 +107,16 @@ export function mapOffProduct(p: OffProduct): OffFood | null {
 
   return {
     off_code: code,
-    name,
+    name: src.prepared ? `${name} (prepared)` : name,
     brand: firstBrand(p.brands),
     per100: {
       kcal: round(kcal, 1),
-      protein: grams100(n, 'proteins'),
-      carbs: grams100(n, 'carbohydrates'),
-      fat: grams100(n, 'fat'),
-      fiber: grams100(n, 'fiber'),
-      sugar: grams100(n, 'sugars'),
-      sat_fat: grams100(n, 'saturated-fat'),
+      protein: grams100(n, 'proteins', src),
+      carbs: grams100(n, 'carbohydrates', src),
+      fat: grams100(n, 'fat', src),
+      fiber: grams100(n, 'fiber', src),
+      sugar: grams100(n, 'sugars', src),
+      sat_fat: grams100(n, 'saturated-fat', src),
       sodium_mg: sodiumG != null && sodiumG <= MAX_GRAMS_100G ? round(sodiumG * 1000, 1) : null,
     },
     servings,

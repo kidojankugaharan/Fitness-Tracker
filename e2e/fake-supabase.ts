@@ -221,6 +221,25 @@ export const OFF_PRODUCTS: Record<string, object> = {
   },
 }
 
+/** USDA foods by canonical (13-digit) barcode, as /api/fdc-barcode returns them. */
+export const FDC_FOODS: Record<string, object> = {
+  '0055000123457': {
+    fdcId: 99,
+    description: 'GREEK YOGURT, VANILLA',
+    brandOwner: 'Maple Dairy',
+    gtinUpc: '055000123457',
+    servingSize: 175,
+    servingSizeUnit: 'GRM',
+    householdServingFullText: '3/4 cup',
+    foodNutrients: [
+      { nutrientId: 1008, unitName: 'KCAL', value: 80 },
+      { nutrientId: 1003, unitName: 'G', value: 9 },
+      { nutrientId: 1005, unitName: 'G', value: 8 },
+      { nutrientId: 1004, unitName: 'G', value: 1.5 },
+    ],
+  },
+}
+
 const OFF_HITS = [
   {
     code: '5000108000000',
@@ -251,6 +270,12 @@ export async function installFakeBackend(
         ? { code, status: 1, product: { code, ...product } }
         : { code, status: 0, status_verbose: 'product not found' },
     })
+  })
+
+  // Our USDA FoodData Central function: only the foods in FDC_FOODS exist (never calls USDA).
+  await page.route('**/api/fdc-barcode**', (route) => {
+    const code = new URL(route.request().url()).searchParams.get('code') ?? ''
+    return route.fulfill({ json: { food: FDC_FOODS[code] ?? null } })
   })
 
   await page.route('**/rest/v1/**', async (route) => {

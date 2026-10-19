@@ -3,7 +3,8 @@ import { useSession } from '@/app/useAuth'
 import { barcodeVariants, canonicalBarcode } from '@/domain/barcode'
 import type { LocalDate } from '@/domain/dates'
 import { parseServings, type FoodSnapshot, type Per100, type Serving } from '@/domain/macros'
-import { lookupOffBarcode, OFF_MIN_QUERY_LENGTH, searchOff } from '@/lib/off/client'
+import { lookupFdcBarcode } from '@/lib/fdc/client'
+import { lookupOffBarcodeVariants, OFF_MIN_QUERY_LENGTH, searchOff } from '@/lib/off/client'
 import type { OffFood } from '@/lib/off/mapper'
 import { supabase } from './client'
 import type { Tables } from './database.types'
@@ -175,15 +176,18 @@ export type BarcodeLookup =
 
 /**
  * Resolve a scanned barcode: the user's own foods first (custom foods they created for it), then the
- * shared Open Food Facts cache, and only then the OFF API. Any spelling of the same product
+ * shared barcode cache, then the Open Food Facts API, then USDA FoodData Central. Any spelling of the same product
  * (UPC-A, UPC-E, EAN-13) matches. Repeat scans never leave our database.
  */
 export function useBarcodeLookup(code: string) {
   const userId = useSession().user.id
   const canonical = canonicalBarcode(code)
-  return useQuery({
+  return useQuery<BarcodeLookup>({
     queryKey: keys.barcode(userId, canonical),
     staleTime: 5 * 60_000,
+    // A remembered miss may be out of date (a food was just created for this code, or the saved
+    // copy predates it), so misses are always re-checked when the screen opens.
+    refetchOnMount: (query) => (query.state.data?.status === 'found' ? true : 'always'),
     retry: 1,
     queryFn: async ({ signal }): Promise<BarcodeLookup> => {
       const { data, error } = await supabase
@@ -195,8 +199,19 @@ export function useBarcodeLookup(code: string) {
       const local = data.find((f) => f.user_id !== null) ?? data[0]
       if (local) return { status: 'found', choice: choiceFromRow(local) }
 
-      const off = await lookupOffBarcode(canonical, signal)
-      if (off.status === 'found') return { status: 'found', choice: choiceFromOff(off.food) }
+      let off: Awaited<ReturnType<typeof lookupOffBarcodeVariants>> | Error
+      try {
+        off = await lookupOffBarcodeVariants(canonical, barcodeVariants(code), signal)
+        if (off.status === 'found') return { status: 'found', choice: choiceFromOff(off.food) }
+      } catch (error) {
+        if (signal.aborted) throw error
+        off = error instanceof Error ? error : new Error('Open Food Facts lookup failed')
+      }
+      // Second source: USDA FoodData Central (US branded foods, often the same UPC in Canada).
+      // Cached into our database like an OFF product once logged, so it's never fetched again.
+      const fdc = await lookupFdcBarcode(canonical, signal)
+      if (fdc) return { status: 'found', choice: choiceFromOff(fdc) }
+      if (off instanceof Error) throw off
       return off
     },
   })

@@ -14,8 +14,14 @@ describe('vercel.json', () => {
       expect(spaPattern.test(path)).toBe(true)
   })
 
-  it('does not rewrite files, assets or the search proxy', () => {
-    for (const path of ['/assets/index.js', '/sw.js', '/manifest.webmanifest', '/off-search/search']) {
+  it('does not rewrite files, assets, API functions or the search proxy', () => {
+    for (const path of [
+      '/assets/index.js',
+      '/sw.js',
+      '/manifest.webmanifest',
+      '/off-search/search',
+      '/api/fdc-barcode',
+    ]) {
       expect(spaPattern.test(path)).toBe(false)
     }
   })

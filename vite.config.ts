@@ -1,12 +1,14 @@
 import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { handleFdcBarcode } from './api/fdc-barcode'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    fdcBarcodeApi(loadEnv(mode, process.cwd(), '').FDC_API_KEY),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -29,6 +31,7 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/off-search\//],
         // Only the app shell is precached. Supabase and Open Food Facts responses are
         // deliberately not cached here: TanStack Query owns server-state caching.
         // The barcode reader's .wasm (~1 MB, only needed without native BarcodeDetector) is not
@@ -50,12 +53,32 @@ export default defineConfig({
   // Mirrors the /off-search rewrite in vercel.json (OFF search has no CORS headers).
   server: { proxy: { '/off-search': offSearchProxy() } },
   preview: { proxy: { '/off-search': offSearchProxy() } },
-})
+}))
 
 function offSearchProxy() {
   return {
     target: 'https://search.openfoodfacts.org',
     changeOrigin: true,
     rewrite: (path: string) => path.replace(/^\/off-search/, ''),
+  }
+}
+
+/** Serves the Vercel function api/fdc-barcode.ts in `vite dev` and `vite preview` too. */
+function fdcBarcodeApi(apiKey: string | undefined): Plugin {
+  const middleware: Connect.NextHandleFunction = (req, res, next) => {
+    if (!req.url?.startsWith('/api/fdc-barcode')) return next()
+    void handleFdcBarcode(new Request(new URL(req.url, 'http://localhost')), apiKey).then(
+      async (response) => {
+        res.statusCode = response.status
+        response.headers.forEach((value, key) => res.setHeader(key, value))
+        res.end(await response.text())
+      },
+      next,
+    )
+  }
+  return {
+    name: 'fdc-barcode-api',
+    configureServer: (server) => void server.middlewares.use(middleware),
+    configurePreviewServer: (server) => void server.middlewares.use(middleware),
   }
 }
