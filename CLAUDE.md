@@ -2,6 +2,12 @@
 
 A mobile-friendly web app combining **food & macro logging** (MyFitnessPal-style) and **workout logging** (FitNotes-style: sets, reps, weight, history, progress charts, PRs) — with a cleaner, faster UX than either.
 
+## Android app (APK)
+
+- A Trusted Web Activity wrapping the live PWA (`android/twa-manifest.json`, package `com.kidojankugaharan.fitnesstracker`). Web deploys reach it without a rebuild; rebuild only when the name, icon or Android settings change.
+- Build: GitHub Actions "Android APK" (`gh workflow run android.yml`) generates the project with Bubblewrap, builds with Gradle, signs and publishes Release `android-v1.0.<run>` with `fitness-tracker.apk` (version code = run number, so each build installs over the last).
+- Signing key: PKCS12 in `C:\Users\Kido\.android-keys\` (never in the repo); repo secrets `ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD`. Its SHA-256 fingerprint must match `public/.well-known/assetlinks.json`, or Android shows a URL bar.
+
 ## Product principles
 
 - **Speed over features.** Logging a set or a food should take 1–3 taps. Pre-fill from history, use steppers, avoid modals where possible.
