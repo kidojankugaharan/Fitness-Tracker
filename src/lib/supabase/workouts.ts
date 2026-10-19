@@ -35,6 +35,11 @@ const PAGE_SIZE = 1000
 
 const SUMMARY_SELECT = '*, workout_sets(exercise_id, weight_kg, reps, is_warmup)'
 
+// Finishing never deletes (that could race with set writes or another device), so a workout finished
+// with no sets stays on the server; lists simply leave such empty sessions out.
+const withSets = (workouts: WorkoutWithSets[]) =>
+  workouts.filter((w) => w.ended_at === null || w.workout_sets.length > 0)
+
 /** The in-progress workout (not yet finished), if any. */
 export function useActiveWorkout() {
   const userId = useSession().user.id
@@ -67,7 +72,7 @@ export function useRecentWorkouts(limit = 20) {
         .order('started_at', { ascending: false })
         .limit(limit)
       if (error) throw error
-      return data as WorkoutWithSets[]
+      return withSets(data as WorkoutWithSets[])
     },
   })
 }
@@ -83,7 +88,7 @@ export function useWorkoutsOnDate(date: LocalDate) {
         .eq('date', date)
         .order('started_at')
       if (error) throw error
-      return data as WorkoutWithSets[]
+      return withSets(data as WorkoutWithSets[])
     },
   })
 }
@@ -143,11 +148,13 @@ export function useStartWorkout() {
   })
 }
 
-export function useDeleteWorkout() {
+/** Discard a workout and its sets. Queued after the workout's pending set writes (same scope). */
+export function useDeleteWorkout(workoutId: string) {
   const userId = useSession().user.id
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (workoutId: string) => {
+    scope: workoutScope(workoutId),
+    mutationFn: async () => {
       const { error } = await supabase.from('workouts').delete().eq('id', workoutId)
       if (error) throw error
     },

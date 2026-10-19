@@ -184,8 +184,8 @@ Remaining Phase 2 items (not started):
 
 A full Codex review (bugs, security, data integrity, UX, features, code quality) was done; every bug/security/integrity/UX/quality finding was fixed and regression-tested in `e2e/review-fixes.spec.ts` and `supabase/tests/policies.test.ts`. Missing features it listed are the "Remaining" items above. Still open:
 
-- **Migration `20261019000000_tighten_reference_policies.sql` must be applied** to the live project (SQL editor or `supabase db push`).
-- The shared OFF cache accepts inserts from any signed-in account (by design); with open sign-ups a stranger could plant bad data. Recommended: disable "Allow new users to sign up" in Supabase Auth.
+- Migration `20261019000000_tighten_reference_policies.sql` is applied to the live project (2026-10-19).
+- The shared OFF cache accepts inserts from any signed-in account (by design), so "Allow new users to sign up" is **disabled** in Supabase Auth (2026-10-19). Re-enabling sign-ups needs a moderation story for the cache first.
 - A failed write keeps its payload for the toast's **Retry**, but doesn't restore the typed draft into the form.
 
 ### Phase 3 — Progress
@@ -219,8 +219,12 @@ A full Codex review (bugs, security, data integrity, UX, features, code quality)
   - Writes to the same thing share a mutation `scope` (diary entries; each workout's sets + finish; profile) so they run in order.
   - After settling, refetch with `reconcileWhenIdle` (only when no other write in the group is pending). Cancel affected queries before optimistic updates.
   - Diary writes, set logs/deletes and finishing a workout are registered with `setMutationDefaults` (`registerFoodMutations` / `registerWorkoutMutations`, called in `main.tsx` before restore) so offline writes persist to localStorage and replay after reload. Their variables must carry everything the write needs (incl. `user_id`) — no closures over component state.
+  - Every **pending** replayable write is persisted (not only paused ones: `shouldPersistMutation`) and resumed after restore (`resumeRestoredWrites`); the online state starts from `navigator.onLine`. Writes that never reached the server (`isTransportError`) retry until they get through — they must never be dropped for lack of signal.
+  - Writes whose rows are built inside `mutationFn` (e.g. copy) derive ids with `stableUuid(nonce, …)`, the nonce made once per tap, so the toast's Retry can't duplicate.
+  - `reconcileWhenIdle` keeps the keys of writes that settled while others were pending and refetches them all when the group drains.
+  - Finishing a workout only sets `ended_at` and never deletes (lists hide finished workouts with no sets); only an explicit Discard deletes, queued in the workout's scope.
 - Query cache is persisted (`PersistQueryClientProvider`); bump `CACHE_BUSTER` in `src/lib/queryClient.ts` when cached data shapes change. Every query key holding private rows includes the user id; the cache is cleared whenever the signed-in user changes.
-- Never treat "not loaded" as "empty": show `LoadError` with retry for failed loads; never delete based on data that wasn't confirmed by the server since the screen opened.
+- Never treat "not loaded" as "empty": show `LoadError` with retry for failed loads; never delete based on what the client believes is on the server (optimistic updates also count as "fetched").
 - Validate URL params (`dateFromParam`); use `useToday()` (rolls over at midnight / on resume) instead of `today()` in components.
 - Parse user-typed numbers with `parseNonNegative` (blank → null, invalid → NaN); never coerce invalid input to 0.
 - Barcodes: store `canonicalBarcode()` (GTIN-13), look up with `barcodeVariants()`.

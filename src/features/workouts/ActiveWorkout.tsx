@@ -33,16 +33,13 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
   const userId = useSession().user.id
   const setsQuery = useWorkoutSets(workout.id)
   const sets = useMemo(() => setsQuery.data ?? [], [setsQuery.data])
-  // Sets may come from the copy saved on this phone (works offline). That is enough to finish, but
-  // "this workout is empty, delete it" is only trusted after the server confirmed it since opening.
   const setsKnown = setsQuery.isSuccess
-  const confirmedEmpty = setsQuery.isFetchedAfterMount && !setsQuery.isFetching && sets.length === 0
   const exercises = useExerciseMap()
   const { data: profile } = useProfile()
   const units = profile?.units ?? 'kg'
   const restSec = profile?.rest_timer_default_sec ?? 90
   const finish = useFinishWorkout(workout.id)
-  const discard = useDeleteWorkout()
+  const discard = useDeleteWorkout(workout.id)
   const [pending, setPending] = useState(() => loadPending(workout.id))
   const [picking, setPicking] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -59,11 +56,11 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
   }
 
   const end = (kind: 'finish' | 'discard') => {
-    // Never infer "empty, so delete it" from sets that haven't loaded (slow or no signal).
-    if (kind === 'finish' && !setsKnown) return
     savePending(workout.id, [])
     stopRest()
-    if (kind === 'discard' || confirmedEmpty) discard.mutate(workout.id)
+    // Only an explicit Discard deletes. Finish just marks the workout ended, so it can never remove
+    // sets the phone hasn't seen (still saving, not loaded yet, or logged on another device).
+    if (kind === 'discard') discard.mutate()
     else finish.mutate({ workoutId: workout.id, userId, endedAt: new Date().toISOString() })
   }
 
@@ -134,7 +131,7 @@ export function ActiveWorkout({ workout }: { workout: Workout }) {
             <Button variant="ghost" className="flex-1" onClick={() => setConfirmDiscard(true)}>
               Discard
             </Button>
-            <Button className="flex-[2]" disabled={!setsKnown} onClick={() => end('finish')}>
+            <Button className="flex-[2]" onClick={() => end('finish')}>
               Finish workout
             </Button>
           </>

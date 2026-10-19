@@ -328,6 +328,18 @@ export async function installFakeBackend(
         ...(path === 'foods' ? { updated_at: now, servings: [] } : {}),
         ...r,
       }))
+      // Primary key: a statement inserting an existing id fails as a whole, like Postgres.
+      if (inserted.some((r) => table.some((t) => t.id === r.id))) {
+        return route.fulfill({
+          status: 409,
+          json: {
+            code: '23505',
+            message: 'duplicate key value violates unique constraint',
+            details: null,
+            hint: null,
+          },
+        })
+      }
       table.push(...inserted)
       return respond(route, inserted, wantsObject, 201)
     }

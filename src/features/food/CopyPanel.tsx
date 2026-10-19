@@ -39,7 +39,7 @@ export function CopyPanel({ toDate, meal, onDone }: Props) {
           disabled={copy.isPending || fromDate === toDate}
           onClick={() =>
             copy.mutate(
-              { fromDate, toDate, meal },
+              { fromDate, toDate, meal, copyId: crypto.randomUUID() },
               {
                 onSuccess: (count) => {
                   showToast(

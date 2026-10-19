@@ -33,21 +33,61 @@ test.describe('signed in', () => {
     return () => release()
   }
 
-  test('D1: on a cold start, Finish waits for the sets to load', async ({ page }) => {
+  test('D1: finishing before the sets have loaded keeps them', async ({ page }) => {
     const db = await installFakeBackend(page)
     await startWorkoutWithSet(page)
     await expect.poll(() => db.workout_sets!.length).toBe(1)
 
     await page.evaluate(() => localStorage.removeItem('fitness-tracker-cache')) // nothing saved on the phone
-    const release = await stallSetReads(page)
+    await stallSetReads(page) // never released
     await page.reload()
-    await expect(page.getByRole('button', { name: 'Finish workout' })).toBeDisabled()
-    release()
-    await expect(page.getByRole('button', { name: 'Finish workout' })).toBeEnabled()
     await page.getByRole('button', { name: 'Finish workout' }).click()
     await expect(page.getByRole('button', { name: 'Start workout' })).toBeVisible()
+    await expect.poll(() => db.workouts![0]?.ended_at ?? null).not.toBeNull()
     expect(db.workout_sets).toHaveLength(1)
-    expect(db.workouts![0]!.ended_at).not.toBeNull()
+  })
+
+  test('D1: finishing right after deleting the last set never deletes the workout', async ({ page }) => {
+    const db = await installFakeBackend(page)
+    await startWorkoutWithSet(page)
+    await expect.poll(() => db.workout_sets!.length).toBe(1)
+    await page.getByRole('button', { name: 'Delete set 1' }).click()
+    await page.getByRole('button', { name: 'Finish workout' }).click()
+    await expect(page.getByRole('button', { name: 'Start workout' })).toBeVisible()
+    await expect.poll(() => db.workouts![0]?.ended_at ?? null).not.toBeNull()
+    expect(db.workouts).toHaveLength(1)
+  })
+
+  test('D2: with no signal (phone still says online), a write survives reopening the app', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000)
+    const db = await installFakeBackend(page)
+    await page.goto('/food')
+    await expect(page.getByText('0 / 2000 eaten')).toBeVisible()
+
+    // Weak gym signal: the browser reports online but no request reaches Supabase.
+    let noSignal = true
+    await page.route('**/rest/v1/**', (route) =>
+      noSignal ? route.abort('internetdisconnected') : route.fallback(),
+    )
+    await page.getByRole('link', { name: '+ Add food' }).first().click()
+    await page.getByRole('button', { name: 'Quick add' }).click()
+    await page.getByLabel('Calories (kcal)').fill('250')
+    await page.getByRole('button', { name: 'Add to diary' }).click()
+    await expect(page.getByText(/1 change saved on this phone/)).toBeVisible({ timeout: 10_000 })
+    await page.waitForTimeout(800) // let the persister flush
+
+    // Close and reopen twice without signal: the write must stay queued, not use up its retries.
+    for (let i = 0; i < 2; i++) {
+      await page.reload()
+      await expect(page.getByText(/1 change saved on this phone/)).toBeVisible({ timeout: 10_000 })
+      await page.waitForTimeout(3000)
+    }
+    expect(db.food_entries).toHaveLength(0)
+    noSignal = false
+    await expect.poll(() => db.food_entries!.length, { timeout: 30_000 }).toBe(1)
+    await expect(page.getByText(/saved on this phone/)).toHaveCount(0)
   })
 
   test('D1: an out-of-date saved copy showing no sets never deletes the workout', async ({ page }) => {
@@ -142,6 +182,42 @@ test.describe('signed in', () => {
     await page.getByRole('button', { name: 'Undo' }).click()
     await expect(page.getByText('100 kg × 5', { exact: true })).toBeVisible()
     await expect.poll(() => db.workout_sets!.length).toBe(1)
+  })
+
+  test('copy: Retry after a lost response does not copy the meal twice', async ({ page }) => {
+    const tables = seedTables()
+    const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA')
+    tables.food_entries = [
+      {
+        id: crypto.randomUUID(),
+        user_id: USER_ID,
+        date: yesterday,
+        meal: 'Breakfast',
+        food_id: null,
+        food_snapshot: {
+          name: 'Oatmeal',
+          brand: null,
+          per100: { kcal: 300, protein: 10, carbs: 50, fat: 5 },
+        },
+        grams: 100,
+        serving_label: null,
+        created_at: new Date().toISOString(),
+      },
+    ]
+    const db = await installFakeBackend(page, tables)
+    let loseResponse = true
+    await page.route('**/rest/v1/food_entries**', async (route) => {
+      if (route.request().method() !== 'POST' || !loseResponse) return route.fallback()
+      loseResponse = false
+      db.food_entries!.push(...(route.request().postDataJSON() as Record<string, unknown>[])) // saved…
+      await route.abort('connectionreset') // …but the answer never comes back
+    })
+    await page.goto('/food')
+    await page.getByRole('button', { name: 'Copy…' }).first().click()
+    await page.getByRole('button', { name: 'Copy from Yesterday' }).click()
+    await page.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByText('Oatmeal')).toHaveCount(1) // shown once the retry succeeds
+    expect(db.food_entries).toHaveLength(2) // yesterday's + exactly one copy
   })
 
   test('B6: an invalid weight blocks logging instead of becoming 0 kg', async ({ page }) => {

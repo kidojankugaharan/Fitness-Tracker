@@ -7,7 +7,7 @@ import { lookupOffBarcode, OFF_MIN_QUERY_LENGTH, searchOff } from '@/lib/off/cli
 import type { OffFood } from '@/lib/off/mapper'
 import { supabase } from './client'
 import type { Tables } from './database.types'
-import { reconcileWhenIdle, throwUnlessDuplicate } from './writes'
+import { reconcileWhenIdle, stableUuid, throwUnlessDuplicate } from './writes'
 
 export type FoodRow = Tables<'foods'>
 export type FoodEntry = Tables<'food_entries'>
@@ -254,19 +254,23 @@ export function useCopyEntries() {
       fromDate,
       toDate,
       meal,
+      copyId,
     }: {
       fromDate: LocalDate
       toDate: LocalDate
       meal?: string
+      /** Generated once per tap: Retry reuses it, so the copied rows get the same ids again. */
+      copyId: string
     }) => {
       let query = supabase.from('food_entries').select('*').eq('date', fromDate).order('created_at')
       if (meal) query = query.eq('meal', meal)
       const { data: source, error } = await query
       if (error) throw error
       if (source.length === 0) return 0
-      // Ids are fixed before the first attempt, so a retry after a lost response can't duplicate.
-      const rows = source.map((e) => ({
-        id: crypto.randomUUID(),
+      // Ids derive from the copy and the source entry, so a retry after a lost response can't duplicate.
+      const ids = await Promise.all(source.map((e) => stableUuid(copyId, toDate, e.id)))
+      const rows = source.map((e, i) => ({
+        id: ids[i]!,
         user_id: userId,
         date: toDate,
         meal: e.meal,

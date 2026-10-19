@@ -1,5 +1,6 @@
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
-import { MutationCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, onlineManager, QueryClient, type Mutation } from '@tanstack/react-query'
+import { isTransportError } from './supabase/writes'
 import { errorMessage, showToast } from './toast'
 
 // Data and queued writes are persisted to this device so the app opens instantly with the last
@@ -31,7 +32,10 @@ export const queryClient: QueryClient = new QueryClient({
       retry: 2,
       refetchOnWindowFocus: false,
     },
-    mutations: { retry: 1 },
+    // A write that never reached the server (no signal) keeps retrying, with backoff, until it gets
+    // through; it stays pending, so it is persisted and replayed if the app is closed meanwhile.
+    // Errors the server answered with are retried once, then surface as a toast.
+    mutations: { retry: (failures, error) => isTransportError(error) || failures < 1 },
   },
 })
 
@@ -51,3 +55,26 @@ export const persister = createSyncStoragePersister({
   key: 'fitness-tracker-cache',
   throttleTime: 500,
 })
+
+/**
+ * Writes that are persisted to the device until the server acknowledges them: every pending write
+ * that can be replayed after a reload (its function is registered with setMutationDefaults), whether
+ * it is paused offline or was in flight when the app closed.
+ */
+export function shouldPersistMutation(mutation: Mutation<unknown, Error, unknown, unknown>): boolean {
+  if (mutation.state.status !== 'pending') return false
+  const key = mutation.options.mutationKey
+  return !!key && !!queryClient.getMutationDefaults(key).mutationFn
+}
+
+/** Start with the device's real connectivity (TanStack assumes online until an online/offline event). */
+export function initOnlineState() {
+  if (typeof navigator !== 'undefined' && 'onLine' in navigator) onlineManager.setOnline(navigator.onLine)
+}
+
+/** After the persisted cache is restored, replay every write that hadn't been acknowledged yet. */
+export function resumeRestoredWrites() {
+  for (const mutation of queryClient.getMutationCache().getAll()) {
+    if (mutation.state.status === 'pending') void mutation.continue().catch(() => {})
+  }
+}

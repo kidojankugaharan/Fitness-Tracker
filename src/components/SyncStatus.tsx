@@ -9,7 +9,11 @@ export function SyncStatus() {
   const online = useSyncExternalStore(onlineManager.subscribe.bind(onlineManager), () =>
     onlineManager.isOnline(),
   )
-  const pending = useMutationState({ filters: { status: 'pending' }, select: (m) => m.state.isPaused })
+  // Waiting = paused offline, or retrying because requests aren't getting through (weak signal).
+  const pending = useMutationState({
+    filters: { status: 'pending' },
+    select: (m) => m.state.isPaused || m.state.failureCount > 0,
+  })
   const waiting = pending.filter(Boolean).length
 
   if (online && waiting === 0) return null
